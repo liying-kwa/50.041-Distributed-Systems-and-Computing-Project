@@ -11,7 +11,7 @@ const Course = props => (
       <td>{props.course.meetDate}</td>
       <td>{props.course.status}</td>
       <td>
-        <Link to={{pathname: `/`, query: {class: props.course.class}}}>
+        <Link to={{pathname: `/`, query: {"course": props.course}}}>
             <button type="button" className="btn btn-primary">
                 Select
             </button>
@@ -36,6 +36,7 @@ export default class SelectPage extends Component {
                         instructor: "Staff", 
                         meetDate: "20/05/2019 - 16/08/2019",
                         status: 'Available', 
+                        units: '24.00'
                     },
                     {   
                         _id: '2',
@@ -46,6 +47,7 @@ export default class SelectPage extends Component {
                         instructor: "Staff", 
                         meetDate: "20/05/2019 - 16/08/2019",
                         status: 'Available', 
+                        units: '24.00'
                     }
                 ],
             }

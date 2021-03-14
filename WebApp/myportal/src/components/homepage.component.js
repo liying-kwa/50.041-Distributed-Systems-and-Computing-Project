@@ -1,4 +1,5 @@
 import React, { Component } from 'react';
+import Course from "./course.component";
 
 export default class HomePage extends Component {
     constructor(props) {
@@ -16,28 +17,21 @@ export default class HomePage extends Component {
             subject: '', 
             number: '', 
             career: '', 
-            cart: ""
+            courses: []
             // search: false,
         }
         
     }
 
     componentDidMount() {
-        const cart = this.props.location.query
-        if (cart != undefined) {
+        const course = this.props.location.query
+        const cart = []
+        if (course != undefined) {
+            cart.push(course.course)
             this.setState({
-                cart: cart.class
+                courses: cart
             })
         }
-        // console.log(cart)
-        // let storageCart = localStorage.getItem('cart');
-        // if (storageCart != null) {
-        //     storageCart =  
-        //     this.setState({
-        //         cart: storageCart
-        //     })
-        // }
-        // console.log(storageCart)
     }
 
     onChangeSubject(e) {
@@ -58,22 +52,31 @@ export default class HomePage extends Component {
          }) 
      }
 
+     coursesList() {
+        return this.state.courses.map(course => {
+            // console.log(course)
+            return <Course course={course} key={course._id}/>;
+        })
+    }
+
      onSubmit(e) {
          // check for course
         this.props.history.push("/select" );   
     }
 
     render() {
-        const cart = this.state.cart
+        const cart = this.state.courses
         let addedToCart
         if (cart != "" ) {
-            addedToCart = <p>{cart} has been added to your cart</p>
+            addedToCart = <p>{this.state.courses[0].class} has been added to your cart</p> 
         } else {
             addedToCart = <div></div>
         }
         return (
             <div>
                 {addedToCart}
+                <div className = 'row'>
+                <div className="col-4">
                 <h2>Class Search</h2> 
                 <form onSubmit={this.onSubmit}>
                     <div className = "form-group"> 
@@ -131,6 +134,31 @@ export default class HomePage extends Component {
                             <input type="submit" value="Search" className="btn btn-primary"/>
                         </div>
                 </form>
+                </div>
+                <div className="col-8">
+                <div>
+                    <h3>Enrollment Summary</h3>
+                    <div></div>
+                    <table className="table">
+                    <thead className="thead-light">
+                        <tr>
+                        {/* <th>Delete</th> */}
+                        <th>Class</th>
+                        <th>Days/Times</th>
+                        <th>Room</th>
+                        <th>Instructor</th>
+                        <th>Units</th>
+                        <th>Status</th>
+                        <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {this.coursesList()}
+                    </tbody>
+                    </table>
+                    </div>
+                </div>
+                </div> 
             </div>
         )
     }
