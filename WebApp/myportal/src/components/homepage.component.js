@@ -33,6 +33,25 @@ const EnrolledCourse = props => (
     </tr>
 )
 
+const ConfirmedCourse = props => (
+    <tr>
+      <td>{props.course.section} ({props.course.class})</td>
+      <td>{props.course.dayTime}</td>
+      <td>{props.course.room}</td>
+      <td>{props.course.instructor}</td>
+      <td>{props.course.units}</td>
+      <td>{props.course.status}</td>
+    </tr>
+)
+
+const SuccessCourse = props => (
+    <tr>
+      <td>{props.course.section} ({props.course.class})</td>
+      <td>Success! This class has been added to your schedule</td>
+      <td>Sucess</td>
+    </tr>
+)
+
 
 export default class HomePage extends Component {
     constructor(props) {
@@ -44,6 +63,11 @@ export default class HomePage extends Component {
         this.onSubmit = this.onSubmit.bind(this);
         this.selectCourse = this.selectCourse.bind(this);
         this.deleteCourse = this.deleteCourse.bind(this);
+        this.goToStep2 = this.goToStep2.bind(this);
+        this.cancelConfirm = this.cancelConfirm.bind(this)
+        this.previousConfirm = this.previousConfirm.bind(this);
+        this.confirmConfirm = this.confirmConfirm.bind(this);
+        this.addAnotherClass = this.addAnotherClass.bind(this);
 
         this.state = {
             subjects : ['01', '02', '03', '10', '20', '30', '40', '50', '51', '99'], 
@@ -53,8 +77,11 @@ export default class HomePage extends Component {
             number: '', 
             career: '', 
             enrolledCourses: [],
+            successCourses: [],
             searchStage: true,
             selectStage: false, 
+            confirmStage: false, 
+            successStage: false,
             notification: "",
             courses: [
                 {
@@ -103,6 +130,60 @@ export default class HomePage extends Component {
          }) 
      }
 
+     goToStep2() {
+         this.setState({
+            searchStage: false,
+            selectStage: false, 
+            confirmStage: true, 
+            successStage: false,
+            notification: ""
+         })
+     }
+
+     cancelConfirm() {
+         this.setState({
+            searchStage: true,
+            selectStage: false, 
+            confirmStage: false,
+            successStage: false,
+            enrolledCourses: [],
+            notification: "" 
+         })
+     }
+
+     previousConfirm() {
+        this.setState({
+           searchStage: true,
+           selectStage: false, 
+           confirmStage: false,
+           successStage: false,
+           notification: ""
+        })
+    }
+
+    confirmConfirm() {
+        this.setState({
+           searchStage: false,
+           selectStage: false, 
+           confirmStage: false,
+           successStage: true,
+           successCourses: [...this.state.enrolledCourses],
+           notification: ""
+        })
+    }
+
+    addAnotherClass() {
+        this.setState({
+            searchStage: true,
+            selectStage: false, 
+            confirmStage: false,
+            successStage: false,
+            enrolledCourses: [],
+            successCourses: [],
+            notification: ""
+         })
+    }
+
     selectCourse(course) {
         const enrolledCourses = [...this.state.enrolledCourses];
         enrolledCourses.push(course)
@@ -110,6 +191,7 @@ export default class HomePage extends Component {
             enrolledCourses: enrolledCourses,
             selectStage: false, 
             searchStage: true,
+            confirmStage: false, 
             notification: `${course.class} is added to cart` 
         })
     }
@@ -133,15 +215,61 @@ export default class HomePage extends Component {
         })
     }
 
+    confirmedCourseList() {
+        return this.state.enrolledCourses.map(course => {
+            return <ConfirmedCourse course={course}  key={course._id}/>;
+        })
+    }
+
+    SuccessCourseList() {
+        return this.state.enrolledCourses.map(course => {
+            return <SuccessCourse course={course} key={course._id}/>;
+        })
+    }
+
      onSubmit(e) { 
         e.preventDefault()
         this.setState({
             selectStage: true, 
-            searchStage: false
+            searchStage: false,
+            confirmStage: false, 
         })
     }
 
     render() {
+        let step2Button
+        let enrolmentsummary
+        if (this.state.enrolledCourses.length != 0)  {
+            step2Button =  <button type="button" className="btn btn-primary" onClick={this.goToStep2}>
+                        Proceed to step 2 of 3
+                    </button>
+            enrolmentsummary = <div>
+            <h3>Enrollment Summary</h3>
+            <div></div>
+            <table className="table">
+            <thead className="thead-light">
+                <tr>
+                <th>Delete</th>
+                <th>Class</th>
+                <th>Days/Times</th>
+                <th>Room</th>
+                <th>Instructor</th>
+                <th>Units</th>
+                <th>Status</th>
+                <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {this.enrolledCoursesList()}
+            </tbody>
+            </table>
+            </div>
+        } else {
+            enrolmentsummary = <div className="summary">
+                    <h2>No courses have been added to cart</h2>
+                </div>
+        }
+
         const notification = this.state.notification
         if (this.state.searchStage) {
             return (
@@ -208,29 +336,14 @@ export default class HomePage extends Component {
                     </form>
                     </div>
                     <div className="col-8">
-                    <div>
-                        <h3>Enrollment Summary</h3>
-                        <div></div>
-                        <table className="table">
-                        <thead className="thead-light">
-                            <tr>
-                            <th>Delete</th>
-                            <th>Class</th>
-                            <th>Days/Times</th>
-                            <th>Room</th>
-                            <th>Instructor</th>
-                            <th>Units</th>
-                            <th>Status</th>
-                            <th></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {this.enrolledCoursesList()}
-                        </tbody>
-                        </table>
-                        </div>
+                        {enrolmentsummary}
                     </div>
                     </div> 
+                        <div class="d-flex flex-row-reverse">
+                            <div class="p-2">
+                                {step2Button}
+                            </div>
+                        </div>
                 </div>
             )
         }
@@ -256,6 +369,70 @@ export default class HomePage extends Component {
                          {this.selectCoursesList()}
                      </tbody>
                      </table>
+                </div>
+             )
+        } 
+        else if (this.state.confirmStage) {
+            return (
+                <div>
+                     <h3>Confirm Classes</h3>
+                     <div></div>
+                     <table className="table">
+                        <thead className="thead-light">
+                            <tr>
+                            <th>Class</th>
+                            <th>Days/Times</th>
+                            <th>Room</th>
+                            <th>Instructor</th>
+                            <th>Units</th>
+                            <th>Status</th>
+                            <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {this.confirmedCourseList()}
+                        </tbody>
+                        </table>
+                        <div class="d-flex flex-row-reverse">
+                            <div className="p-2">
+                            <button type="button" className="btn btn-primary confirm-flex" onClick={this.cancelConfirm}>
+                                Cancel
+                            </button>
+                            <button type="button" className="btn btn-primary confirm-flex" onClick={this.previousConfirm}>
+                                    Previous 
+                            </button>
+                            <button type="button" className="btn btn-primary confirm-flex" onClick={this.confirmConfirm}>
+                                    Finished Enrolling
+                            </button>
+                            </div>
+                        </div>
+                </div>
+             )
+        }
+        else if (this.state.successStage) {
+            return (
+                <div>
+                     <h3>View Results</h3>
+                     <div></div>
+                     <table className="table">
+                     <thead className="thead-light">
+                         <tr>
+                         <th>Class</th>
+                         <th>Message</th>
+                         <th>Success</th>
+                         </tr>
+                     </thead>
+                     <tbody>
+                         {this.SuccessCourseList()}
+                     </tbody>
+                     </table>
+                     <div class="d-flex flex-row-reverse">
+                            <div class="p-2">
+                                <button type="button" className="btn btn-primary confirm-flex" onClick={this.addAnotherClass}>
+                                        Add Another Class 
+                                </button>
+                            </div>
+                        </div>
                 </div>
              )
         }
