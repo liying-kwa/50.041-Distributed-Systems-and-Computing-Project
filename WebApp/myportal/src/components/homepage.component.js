@@ -1,57 +1,9 @@
 import React, { Component } from 'react';
-
-const Course = props => (
-    <tr>
-      <td>{props.course.class}</td>
-      <td>{props.course.section}</td>
-      <td>{props.course.dayTime}</td>
-      <td>{props.course.room}</td>
-      <td>{props.course.instructor}</td>
-      <td>{props.course.meetDate}</td>
-      <td>{props.course.status}</td>
-      <td>
-        <button type="button" className="btn btn-primary" onClick={() => {props.selectCourse(props.course)}}>
-                Select
-        </button>
-      </td>
-    </tr>
-)
-
-const EnrolledCourse = props => (
-    <tr>
-    <td>
-        <button type="button" className="btn btn-primary" onClick={() => {props.deleteCourse(props.course)}}>
-            Delete
-        </button>
-      </td>
-      <td>{props.course.section} ({props.course.class})</td>
-      <td>{props.course.dayTime}</td>
-      <td>{props.course.room}</td>
-      <td>{props.course.instructor}</td>
-      <td>{props.course.units}</td>
-      <td>{props.course.status}</td>
-    </tr>
-)
-
-const ConfirmedCourse = props => (
-    <tr>
-      <td>{props.course.section} ({props.course.class})</td>
-      <td>{props.course.dayTime}</td>
-      <td>{props.course.room}</td>
-      <td>{props.course.instructor}</td>
-      <td>{props.course.units}</td>
-      <td>{props.course.status}</td>
-    </tr>
-)
-
-const SuccessCourse = props => (
-    <tr>
-      <td>{props.course.section} ({props.course.class})</td>
-      <td>Success! This class has been added to your schedule</td>
-      <td>Sucess</td>
-    </tr>
-)
-
+import Course from './course.component'
+import ConfirmedCourse from './confirmCourse.component'
+import EnrolledCourse from './enrolledCourse.components'
+import SuccessCourse from './successCourse.component'
+import "../App.css"
 
 export default class HomePage extends Component {
     constructor(props) {
