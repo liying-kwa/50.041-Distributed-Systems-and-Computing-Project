@@ -1,4 +1,4 @@
-module github.com/liying-kwa/50.041-Distributed-Systems-and-Computing-Project/WebApp/gofibre
+module github.com/liying-kwa/50.041-Distributed-Systems-and-Computing-Project/WebApp/gofiber
 
 go 1.16
 

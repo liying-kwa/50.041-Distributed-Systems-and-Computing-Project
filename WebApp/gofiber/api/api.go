@@ -2,7 +2,7 @@ package api
 
 import (
 	"github.com/gofiber/fiber/v2"
-	"github.com/liying-kwa/50.041-Distributed-Systems-and-Computing-Project/WebApp/gofibre/database"
+	"github.com/liying-kwa/50.041-Distributed-Systems-and-Computing-Project/WebApp/gofiber/database"
 	"gorm.io/gorm"
 )
 

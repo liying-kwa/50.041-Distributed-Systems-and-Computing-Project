@@ -2,11 +2,12 @@ package main
 
 import (
 	"fmt"
+
 	"github.com/gofiber/fiber/v2"
-	"gorm.io/gorm"
+	"github.com/liying-kwa/50.041-Distributed-Systems-and-Computing-Project/WebApp/gofiber/api"
+	"github.com/liying-kwa/50.041-Distributed-Systems-and-Computing-Project/WebApp/gofiber/database"
 	"gorm.io/driver/sqlite"
-	"github.com/liying-kwa/50.041-Distributed-Systems-and-Computing-Project/WebApp/gofibre/api"
-	"github.com/liying-kwa/50.041-Distributed-Systems-and-Computing-Project/WebApp/gofibre/database"
+	"gorm.io/gorm"
 )
 
 func helloWorld(c *fiber.Ctx) error{
