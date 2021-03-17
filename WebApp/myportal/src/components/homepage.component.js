@@ -29,6 +29,7 @@ export default class HomePage extends Component {
             number: '', 
             career: '', 
             enrolledCourses: [],
+            enrolledCoursesString: '',
             successCourses: [],
             searchStage: true,
             selectStage: false, 
@@ -122,6 +123,17 @@ export default class HomePage extends Component {
            successCourses: [...this.state.enrolledCourses],
            notification: ""
         })
+        let result = this.state.enrolledCourses.map(x => x.class)
+        let array = result + "," + this.state.enrolledCoursesString
+        console.log(array)
+        const requestOptions = {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({"value": array })
+        };
+        fetch('http://localhost:3000/api/v1/student/1003123', requestOptions)
+            .then(response => response.json())
+            .then(data => console.log(data));
     }
 
     addAnotherClass() {
@@ -131,7 +143,7 @@ export default class HomePage extends Component {
             confirmStage: false,
             successStage: false,
             enrolledCourses: [],
-            successCourses: [],
+            successCourses: [...this.state.enrolledCourses],
             notification: ""
          })
     }
@@ -179,6 +191,16 @@ export default class HomePage extends Component {
         })
     }
 
+    getStudent(){
+        fetch('http://localhost:3000/api/v1/student/1003123', {
+            crossDomain:true,
+            method: 'GET',
+            headers: {'Content-Type':'application/json'},
+            }).then(response => response.json()).then(data => this.setState({
+                enrolledCoursesString: data.value
+             }));
+    }
+
      onSubmit(e) { 
         e.preventDefault()
         this.setState({
@@ -191,6 +213,7 @@ export default class HomePage extends Component {
     render() {
         let step2Button
         let enrolmentsummary
+        this.getStudent()
         if (this.state.enrolledCourses.length != 0)  {
             step2Button =  <button type="button" className="btn btn-primary" onClick={this.goToStep2}>
                         Proceed to step 2 of 3
@@ -227,6 +250,11 @@ export default class HomePage extends Component {
             return (
                 <div>
                     <p> {notification} </p>
+                    <div className = 'row'>
+                        <div className ='col'>
+                            <b>Enrolled class:</b> {this.state.enrolledCoursesString}
+                        </div>
+                    </div>
                     <div className = 'row'>
                     <div className="col-4">
                     <h2>Class Search</h2> 
@@ -291,8 +319,8 @@ export default class HomePage extends Component {
                         {enrolmentsummary}
                     </div>
                     </div> 
-                        <div class="d-flex flex-row-reverse">
-                            <div class="p-2">
+                        <div className="d-flex flex-row-reverse">
+                            <div className="p-2">
                                 {step2Button}
                             </div>
                         </div>
@@ -345,7 +373,7 @@ export default class HomePage extends Component {
                             {this.confirmedCourseList()}
                         </tbody>
                         </table>
-                        <div class="d-flex flex-row-reverse">
+                        <div className="d-flex flex-row-reverse">
                             <div className="p-2">
                             <button type="button" className="btn btn-primary confirm-flex" onClick={this.cancelConfirm}>
                                 Cancel
@@ -378,8 +406,8 @@ export default class HomePage extends Component {
                          {this.SuccessCourseList()}
                      </tbody>
                      </table>
-                     <div class="d-flex flex-row-reverse">
-                            <div class="p-2">
+                     <div className="d-flex flex-row-reverse">
+                            <div className="p-2">
                                 <button type="button" className="btn btn-primary confirm-flex" onClick={this.addAnotherClass}>
                                         Add Another Class 
                                 </button>

@@ -10,7 +10,7 @@ import (
 	"gorm.io/gorm"
 )
 
-func helloWorld(c *fiber.Ctx) error{
+func helloWorld(c *fiber.Ctx) error {
 	return c.SendString("Hello, World!")
 }
 
@@ -18,6 +18,7 @@ func setupRoutes(app *fiber.App) {
 	app.Get("/", helloWorld)
 	app.Get("/api/v1/student", api.GetStudents)
 	app.Get("/api/v1/student/:id", api.GetStudent)
+	app.Put("/api/v1/student/:id", api.PutStudent)
 	app.Post("/api/v1/student", api.NewStudent)
 	app.Delete("/api/v1/student/:id", api.DelStudent)
 }
@@ -35,10 +36,10 @@ func initDatabase() {
 }
 
 // go run main.go helper.go
-func main(){
-	app:= fiber.New()
+func main() {
+	app := fiber.New()
 	initDatabase()
 	setupRoutes(app)
 
-	app.Listen(":3000")
+	app.Listen(":3001")
 }
