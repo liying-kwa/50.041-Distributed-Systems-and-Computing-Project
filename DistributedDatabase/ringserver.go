@@ -3,18 +3,41 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"log"
 	"os"
+
+	"50.041-Distributed-Systems-and-Computing-Project/DistributedDatabase/lib"
 )
+
+type RingServer struct {
+	ip   string
+	port string
+}
+
+type Ring struct {
+	MaxID             int // 0 to maxID inclusive
+	RingNodeDataArray []NodeData
+}
+
+func newRingServer() RingServer {
+	ip, err := lib.ExternalIP()
+	if err == nil {
+		return RingServer{ip, "5000"}
+	} else {
+		fmt.Println(err)
+		log.Fatalln(err)
+		return RingServer{}
+	}
+}
 
 func main() {
 
-	ip, err := ExternalIP()
-	newRingServer := RingServer{ip, 8000}
-	fmt.Printf("RingServer is serving on %s:%s", newRingServer.ip, newRingServer.port)
+	theRingServer := newRingServer()
+	fmt.Printf("RingServer is serving on %s:%s... \n", theRingServer.ip, theRingServer.port)
 
 	reader := bufio.NewReader(os.Stdin)
 	for {
-		fmt.Printf("Ringserver> ")
+		fmt.Printf("RingServer> ")
 		cmdString, err := reader.ReadString('\n')
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)

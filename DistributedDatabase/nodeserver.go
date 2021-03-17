@@ -6,7 +6,15 @@ import (
 	"os"
 )
 
-func main() {
+type NodeData struct {
+	ID string
+	//CName string
+	//Hash  int
+	IP   string
+	Port string
+}
+
+func nodeMain() {
 	reader := bufio.NewReader(os.Stdin)
 	for {
 		fmt.Printf("Ringserver> ")
