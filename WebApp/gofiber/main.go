@@ -35,7 +35,8 @@ func initDatabase() {
 	fmt.Println("Database Migrated")
 }
 
-// go run main.go helper.go
+// go run main.go
+// will take a while on first run
 func main() {
 	app := fiber.New()
 	initDatabase()
