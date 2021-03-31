@@ -1,9 +1,17 @@
-package main
+package lib
 
 import (
 	"errors"
 	"net"
 )
+
+type JsonRequest struct {
+	JsonRequestString string `json:"jsonRequestString"`
+}
+
+type JsonResponse struct {
+	JsonResponseString string `json:"jsonResponseString"`
+}
 
 func ExternalIP() (string, error) {
 	ifaces, err := net.Interfaces()
