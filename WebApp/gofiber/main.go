@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/liying-kwa/50.041-Distributed-Systems-and-Computing-Project/WebApp/gofiber/api"
 	"github.com/liying-kwa/50.041-Distributed-Systems-and-Computing-Project/WebApp/gofiber/database"
@@ -23,19 +24,20 @@ func setupRoutes(app *fiber.App) {
 	app.Get("/api/v1/courses", api.GetCourses)
 }
 
-type Course struct  {
-	gorm.Model 
-	subjectNum uint 
-	courseNum uint 
-	courseName string 
-	seatsLeft uint 
-	class uint 
-	section string 
-	daysAndTimes string 
-	room string 
-	instructor string 
-	meetingDate string 
-	status string 
+type Course struct {
+	gorm.Model
+	Id           int
+	SubjectNum   int
+	CourseNum    int
+	CourseName   string
+	SeatsLeft    int
+	Class        int
+	Section      string
+	DaysAndTimes string
+	Room         string
+	Instructor   string
+	MeetingDate  string
+	Status       string
 }
 
 func initDatabase() {
@@ -46,7 +48,7 @@ func initDatabase() {
 	}
 	fmt.Println("Database connection successfully opened!")
 
-	database.DBConn.AutoMigrate(&api.Student{}, Course{})
+	database.DBConn.AutoMigrate(&api.Student{}, &Course{})
 	// database.DBConn.AutoMigrate(&api.Student{}, api)
 	seed(database.DBConn)
 	// fmt.Println("Database Migrated")
@@ -54,8 +56,8 @@ func initDatabase() {
 
 func seed(db *gorm.DB) {
 	channels := []Course{
-		{subjectNum: 50, courseNum: 41, courseName: "Distribute Systems & Computing", seatsLeft: 100, class: 1057, section: "CH01-CLB Regular", daysAndTimes: "Tu 15:00 - 17:00", room: "Think Tank 13 (1.508)", instructor: "Staff", meetingDate: "20/05/2019 - 16/08/2019", status: "Available"},
-		{subjectNum: 50, courseNum: 1, courseName: "Information Systems & Programming", seatsLeft: 0, class: 1194, section: "CH01=2-CLB Regular", daysAndTimes: "Th 15:00 - 17:00", room: "Think Tank 15 (1.610)", instructor: "Staff", meetingDate: "20/05/2019 - 16/08/2019", status: "Not Available"},
+		{SubjectNum: 50, CourseNum: 41, CourseName: "Distribute Systems & Computing", SeatsLeft: 100, Class: 1057, Section: "CH01-CLB Regular", DaysAndTimes: "Tu 15:00 - 17:00", Room: "Think Tank 13 (1.508)", Instructor: "Staff", MeetingDate: "20/05/2019 - 16/08/2019", Status: "Available"},
+		{SubjectNum: 50, CourseNum: 1, CourseName: "Information Systems & Programming", SeatsLeft: 0, Class: 1194, Section: "CH01=2-CLB Regular", DaysAndTimes: "Th 15:00 - 17:00", Room: "Think Tank 15 (1.610)", Instructor: "Staff", MeetingDate: "20/05/2019 - 16/08/2019", Status: "Not Available"},
 	}
 	for _, c := range channels {
 		db.Create(&c)

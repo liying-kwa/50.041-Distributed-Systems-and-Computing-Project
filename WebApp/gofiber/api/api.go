@@ -16,20 +16,20 @@ type Student struct {
 	Course    string `json:"value"`
 }
 
-type Course struct  {
-	gorm.Model 
-	id int 
-	subjectNum int 
-	courseNum int 
-	courseName string 
-	seatsLeft int 
-	class int 
-	section string 
-	daysAndTimes string 
-	room string 
-	instructor string 
-	meetingDate string 
-	status string 
+type Course struct {
+	gorm.Model
+	Id           int
+	SubjectNum   int
+	CourseNum    int
+	CourseName   string
+	SeatsLeft    int
+	Class        int
+	Section      string
+	DaysAndTimes string
+	Room         string
+	Instructor   string
+	MeetingDate  string
+	Status       string
 }
 
 // GET all student carts
