@@ -16,6 +16,22 @@ type Student struct {
 	Course    string `json:"value"`
 }
 
+type Course struct  {
+	gorm.Model 
+	id int 
+	subjectNum int 
+	courseNum int 
+	courseName string 
+	seatsLeft int 
+	class int 
+	section string 
+	daysAndTimes string 
+	room string 
+	instructor string 
+	meetingDate string 
+	status string 
+}
+
 // GET all student carts
 func GetStudents(c *fiber.Ctx) error {
 	db := database.DBConn
@@ -72,4 +88,13 @@ func DelStudent(c *fiber.Ctx) error {
 	}
 	db.Delete(&student)
 	return c.SendString("Book Successfully Deleted!")
+}
+
+func GetCourses(c *fiber.Ctx) error {
+	db := database.DBConn
+	var courses []Course
+	db.Find(&courses)
+	// db.Raw("SELECT * from courses").Scan(&courses)
+	// Convert to JSON and set content header to application/json
+	return c.JSON(courses)
 }
