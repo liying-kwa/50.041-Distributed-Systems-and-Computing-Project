@@ -1,16 +1,22 @@
 package main
 
 import (
-	//"bufio"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
-	"time"
+	"sync"
 
-	"50.041-Distributed-Systems-and-Computing-Project/DistributedDatabase/lib"
+	"github.com/gofiber/fiber/v2"
+	"github.com/liying-kwa/50.041-Distributed-Systems-and-Computing-Project/DistributedDatabase/gofiber/api"
+	"github.com/liying-kwa/50.041-Distributed-Systems-and-Computing-Project/DistributedDatabase/gofiber/database"
+	"github.com/liying-kwa/50.041-Distributed-Systems-and-Computing-Project/DistributedDatabase/lib"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
 )
+
+var wg = &sync.WaitGroup{}
 
 type RingServer struct {
 	ip   string
@@ -18,6 +24,7 @@ type RingServer struct {
 	ring lib.Ring
 }
 
+// Initiate socket of ring on port 5001 (for communication with node server)
 func newRingServer() RingServer {
 	ip, _ := lib.ExternalIP()
 	return RingServer{
@@ -30,6 +37,16 @@ func newRingServer() RingServer {
 	}
 }
 
+// Listening on port 3001 (for communication with front-end)
+func setupRoutes(app *fiber.App) {
+	app.Get("/api/v1/student", api.GetStudents)
+	app.Get("/api/v1/student/:id", api.GetStudent)
+	app.Put("/api/v1/student/:id", api.PutStudent)
+	app.Post("/api/v1/student", api.NewStudent)
+	app.Delete("/api/v1/student/:id", api.DelStudent)
+}
+
+// Listening on port 5001 (for communication with front-end)
 func (ringServer RingServer) start() {
 	http.HandleFunc("/add-node", ringServer.addNodeHandler)
 	//http.HandleFunc("/faint-node", ringServer.FaintNodeHandler)
@@ -42,6 +59,20 @@ func (ringServer RingServer) start() {
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%s", ringServer.port), nil))
 }
 
+// Initialise temporary SQL databse (see gofiber/api)
+func initDatabase() {
+	var err error
+	database.DBConn, err = gorm.Open(sqlite.Open("students.db"), &gorm.Config{})
+	if err != nil {
+		panic("Failed to connect to database")
+	}
+	fmt.Println("Database connection successfully opened!")
+
+	database.DBConn.AutoMigrate(&api.Student{})
+	fmt.Println("Database Migrated")
+}
+
+// Receive POST request from :5001/add-node
 func (ringServer *RingServer) addNodeHandler(w http.ResponseWriter, r *http.Request) {
 	log.Printf("[RingServer] Receiving Registration from a Node")
 	body, _ := ioutil.ReadAll(r.Body)
@@ -52,25 +83,15 @@ func (ringServer *RingServer) addNodeHandler(w http.ResponseWriter, r *http.Requ
 	fmt.Fprintf(w, "Successlly added node to ring! ")
 }
 
+// Will take awhile for first run as code imports from Github
 func main() {
+	app := fiber.New()
+	initDatabase()
+	setupRoutes(app)
 
 	theRingServer := newRingServer()
 	go theRingServer.start()
 
-	time.Sleep(time.Second * 10)
-
-	println(theRingServer.ring.RingNodeDataMap[0].Id)
-	println(theRingServer.ring.RingNodeDataMap[0].Ip)
-	println(theRingServer.ring.RingNodeDataMap[0].Port)
-
-	/* reader := bufio.NewReader(os.Stdin)
-	for {
-		fmt.Printf("RingServer> ")
-		cmdString, err := reader.ReadString('\n')
-		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
-		}
-		fmt.Printf("Command given: %s \n", cmdString)
-	} */
-
+	ip, _ := lib.ExternalIP()
+	app.Listen(ip + ":3001")
 }

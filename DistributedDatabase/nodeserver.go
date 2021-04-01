@@ -7,7 +7,7 @@ import (
 	"io/ioutil"
 	"net/http"
 
-	"50.041-Distributed-Systems-and-Computing-Project/DistributedDatabase/lib"
+	"github.com/liying-kwa/50.041-Distributed-Systems-and-Computing-Project/DistributedDatabase/lib"
 )
 
 type Node struct {
@@ -31,6 +31,7 @@ func (n *Node) addNodeToRing() {
 	// Send to ring server
 	postURL := fmt.Sprintf("http://%s:%s/add-node", n.ringServerIp, n.ringServerPort)
 	resp, _ := http.Post(postURL, "application/json", bytes.NewReader(requestBody))
+	fmt.Printf("Sending POST request to ring server %s:%s\n", n.ringServerIp, n.ringServerPort)
 	defer resp.Body.Close()
 	body, _ := ioutil.ReadAll(resp.Body)
 	//Checks response from registering with ring server
