@@ -24,6 +24,13 @@ type RingServer struct {
 	ring lib.Ring
 }
 
+// TODO: Confirm key-value names
+type Student struct {
+	gorm.Model
+	Studentid int    `json:"key"`
+	Course    string `json:"value"`
+}
+
 // Initiate socket of ring on port 5001 (for communication with node server)
 func newRingServer() RingServer {
 	ip, _ := lib.ExternalIP()
@@ -39,6 +46,7 @@ func newRingServer() RingServer {
 
 // Listening on port 3001 (for communication with front-end)
 func setupRoutes(app *fiber.App) {
+	app.Get("/", func(c *fiber.Ctx) error { return c.SendString("Hello, World!") })
 	app.Get("/api/v1/student", api.GetStudents)
 	app.Get("/api/v1/student/:id", api.GetStudent)
 	app.Put("/api/v1/student/:id", api.PutStudent)
@@ -46,7 +54,7 @@ func setupRoutes(app *fiber.App) {
 	app.Delete("/api/v1/student/:id", api.DelStudent)
 }
 
-// Listening on port 5001 (for communication with front-end)
+// Listening on port 5001 (for communication with node servers)
 func (ringServer RingServer) start() {
 	http.HandleFunc("/add-node", ringServer.addNodeHandler)
 	//http.HandleFunc("/faint-node", ringServer.FaintNodeHandler)
@@ -70,16 +78,27 @@ func initDatabase() {
 
 	database.DBConn.AutoMigrate(&api.Student{})
 	fmt.Println("Database Migrated")
+
+	students := []Student{
+		{Studentid: 1001234, Course: "DS"},
+		{Studentid: 1000000, Course: "DB"},
+	}
+	for _, c := range students {
+		database.DBConn.Create(&c)
+	}
 }
 
 // Receive POST request from :5001/add-node
 func (ringServer *RingServer) addNodeHandler(w http.ResponseWriter, r *http.Request) {
-	log.Printf("[RingServer] Receiving Registration from a Node")
+	log.Printf("[RingServer] Receiving Registration from Node %s", r.RemoteAddr)
 	body, _ := ioutil.ReadAll(r.Body)
 	var nodeData lib.NodeData
 	json.Unmarshal(body, &nodeData)
+
 	// Add node to ring
 	ringServer.ring.RingNodeDataMap[nodeData.Id] = nodeData
+
+	// HTTP response
 	fmt.Fprintf(w, "Successlly added node to ring! ")
 }
 
@@ -89,9 +108,12 @@ func main() {
 	initDatabase()
 	setupRoutes(app)
 
+	ip, _ := lib.ExternalIP()
+
 	theRingServer := newRingServer()
 	go theRingServer.start()
 
-	ip, _ := lib.ExternalIP()
+	log.Print(fmt.Sprintf("[RingServer] To test, visit %s:%s/api/v1/student", ip, "3001"))
+
 	app.Listen(ip + ":3001")
 }

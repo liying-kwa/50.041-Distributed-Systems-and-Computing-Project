@@ -33,15 +33,23 @@ func (n *Node) addNodeToRing() {
 	resp, _ := http.Post(postURL, "application/json", bytes.NewReader(requestBody))
 	fmt.Printf("Sending POST request to ring server %s:%s\n", n.ringServerIp, n.ringServerPort)
 	defer resp.Body.Close()
+
+	// Waits for HTTP response
 	body, _ := ioutil.ReadAll(resp.Body)
-	//Checks response from registering with ring server
 	fmt.Println("Response from registering w Ring Server: ", string(body))
+}
+
+func listen(w http.ResponseWriter, r *http.Request) {
+	fmt.Printf("[NodeServer] Receiving Registration from Node %s", r.RemoteAddr)
 }
 
 func main() {
 
 	aNode := newNode(0)
 	aNode.addNodeToRing()
+
+	http.HandleFunc("/listen", listen)
+	http.ListenAndServe(":6001", nil)
 
 	/* for {
 		fmt.Printf("Ringserver> ")

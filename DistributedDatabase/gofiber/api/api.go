@@ -1,12 +1,6 @@
 package api
 
 import (
-	"bytes"
-	"encoding/json"
-	"fmt"
-	"io/ioutil"
-	"net/http"
-
 	"github.com/gofiber/fiber/v2"
 	"github.com/liying-kwa/50.041-Distributed-Systems-and-Computing-Project/DistributedDatabase/gofiber/database"
 	"github.com/liying-kwa/50.041-Distributed-Systems-and-Computing-Project/DistributedDatabase/lib"
@@ -31,19 +25,11 @@ type RingServer struct {
 
 // GET all student carts
 func GetStudents(c *fiber.Ctx) error {
-	// TODO: Replace this with actual Node information. Ring Server should be running when executing this.
-	nodeData := lib.NodeData{1, "127.0.0.1", "5001"}
-	requestBody, _ := json.Marshal(nodeData)
-	// Send to ring server
-	postURL := fmt.Sprintf("http://%s:%s/add-node", "192.168.56.1", "5001")
-	resp, _ := http.Post(postURL, "application/json", bytes.NewReader(requestBody))
-	fmt.Printf("Sending POST request to ring server %s:%s\n", "192.168.56.1", "5001")
-	defer resp.Body.Close()
-	body, _ := ioutil.ReadAll(resp.Body)
-	//Checks response from registering with ring server
-	fmt.Println("Response from registering w Ring Server: ", string(body))
+	print("Received GET request, forwarding request to Node 0")
+	ringServer.ring.RingNodeDataMap
 
-	// Temporary return SQL values
+	// TODO: Remove temporary DB below
+	// TODO: Remove temporary SQL DB below
 	db := database.DBConn
 	var students []Student
 	db.Find(&students)
