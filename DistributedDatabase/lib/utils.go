@@ -2,12 +2,15 @@ package lib
 
 import (
 	"bytes"
+	"crypto/md5"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"math"
 	"net"
 	"net/http"
+	"sort"
 )
 
 type JsonRequest struct {
@@ -53,6 +56,47 @@ func ExternalIP() (string, error) {
 		}
 	}
 	return "", errors.New("are you connected to the network?")
+}
+
+// md5 hashing
+func HashMD5(text string, max int) int {
+	byteArray := md5.Sum([]byte(text))
+	var output int
+	for _, num := range byteArray {
+		output += int(num)
+	}
+	return output % max
+}
+
+//   function to allocate the given CourseId to a node and return that node's ip:port
+func (ringServer *RingServer) AllocateKey(key string) string {
+	nodeMap := ringServer.ring.RingNodeDataMap
+	keyHash := HashMD5(key, MAX_KEYS)
+	var lowest int
+	lowest = math.MaxInt32
+
+	for key := range nodeMap {
+		if key < lowest {
+			lowest = key
+		}
+	}
+
+	keys := make([]int, len(nodeMap))
+	i := 0
+	for k := range nodeMap {
+		keys[i] = k
+		i++
+	}
+	sort.Ints(keys)
+	for _, key := range keys {
+		if keyHash <= key {
+			nodeURL := fmt.Sprintf("%s:%s", nodeMap[key].Ip, nodeMap[key].Port)
+			return nodeURL
+		}
+	}
+
+	nodeURL := fmt.Sprintf("%s:%s", nodeMap[lowest].Ip, nodeMap[lowest].Port)
+	return nodeURL
 }
 
 func SendMessage(message string, nodeData NodeData) {

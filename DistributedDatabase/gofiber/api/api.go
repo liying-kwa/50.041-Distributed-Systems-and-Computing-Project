@@ -27,9 +27,10 @@ func GetRingStructure(ring *lib.Ring) {
 
 // GET all student carts
 func GetStudents(c *fiber.Ctx) error {
-	node := Ring.RingNodeDataMap[0]
-	fmt.Printf("Received GET request, forwarding request to Node %d at %s:%s\n", node.Id, node.Ip, node.Port)
-	lib.SendMessage("Testing", node)
+	node := Ring.RingNodeDataMap
+	fmt.Println(node)
+	// fmt.Printf("Received GET request, forwarding request to Node %d at %s:%s\n", node.Id, node.Ip, node.Port)
+	// lib.SendMessage("Testing", node)
 
 	// TODO: Remove temporary SQL DB below
 	db := database.DBConn

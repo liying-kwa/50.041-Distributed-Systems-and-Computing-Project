@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"math/rand"
 	"net/http"
 	"sync"
 
@@ -38,7 +39,6 @@ func newRingServer() RingServer {
 		ip,
 		"5001",
 		lib.Ring{
-			lib.RING_MAX_ID,
 			make(map[int]lib.NodeData),
 		},
 	}
@@ -95,8 +95,47 @@ func (ringServer *RingServer) addNodeHandler(w http.ResponseWriter, r *http.Requ
 	var nodeData lib.NodeData
 	json.Unmarshal(body, &nodeData)
 
+	nodeMap := &ringServer.ring.RingNodeDataMap
+
+	// creating a random key between 0 and 100
+	var random int
+	random = rand.Intn(lib.MAX_KEYS)
+
+	// interim array to iterate through the keys easier
+	keys := make([]int, len(*nodeMap))
+	i := 0
+	for k := range *nodeMap {
+		keys[i] = k
+		i++
+	}
+
+	// making sure that the assigned key has not alr been assigned before
+	idx := 0
+	for idx < len(keys) {
+		if random == keys[idx] {
+			random = rand.Intn(lib.MAX_KEYS)
+			idx = 0
+		}
+		idx++
+	}
+
 	// Add node to ring
-	ringServer.ring.RingNodeDataMap[nodeData.Id] = nodeData
+
+	print(random)
+	(*nodeMap)[random] = nodeData
+	fmt.Println(nodeMap)
+
+	//---------------------- uncomment block below to just test the hashing function----------------//
+	var CourseID string
+	CourseID = "50005"
+	nodeURL := lib.AllocateKey(CourseID)
+	fmt.Println(nodeURL)
+
+	var CourseIDTwo string
+	CourseIDTwo = "500115"
+	nodeURL2 := lib.AllocateKey(CourseIDTwo)
+	fmt.Println(nodeURL2)
+	//---------------------- uncomment block above to just test the hashing function----------------//
 
 	// HTTP response
 	fmt.Fprintf(w, "Successlly added node to ring! ")
