@@ -40,7 +40,8 @@ func (n *Node) addNodeToRing() {
 }
 
 func listen(w http.ResponseWriter, r *http.Request) {
-	fmt.Printf("[NodeServer] Receiving Registration from Node %s", r.RemoteAddr)
+	// TODO: Read the message and take necessary action
+	fmt.Printf("[NodeServer] Receiving Message from Node %s\n", r.RemoteAddr)
 }
 
 func main() {

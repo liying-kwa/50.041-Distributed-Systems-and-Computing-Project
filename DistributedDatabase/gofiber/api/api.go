@@ -1,6 +1,8 @@
 package api
 
 import (
+	"fmt"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/liying-kwa/50.041-Distributed-Systems-and-Computing-Project/DistributedDatabase/gofiber/database"
 	"github.com/liying-kwa/50.041-Distributed-Systems-and-Computing-Project/DistributedDatabase/lib"
@@ -10,6 +12,8 @@ import (
 // You would need to make your function exportable with an uppercase for its name
 // The database stores key:value of Student-ID: [mod1, mod2, ...]?
 
+var Ring *lib.Ring
+
 // Need to be uppercase for first letter and lowercase for the rest
 type Student struct {
 	gorm.Model
@@ -17,18 +21,16 @@ type Student struct {
 	Course    string `json:"value"`
 }
 
-type RingServer struct {
-	ip   string
-	port string
-	ring lib.Ring
+func GetRingStructure(ring *lib.Ring) {
+	Ring = ring
 }
 
 // GET all student carts
 func GetStudents(c *fiber.Ctx) error {
-	print("Received GET request, forwarding request to Node 0")
-	ringServer.ring.RingNodeDataMap
+	node := Ring.RingNodeDataMap[0]
+	fmt.Printf("Received GET request, forwarding request to Node %d at %s:%s\n", node.Id, node.Ip, node.Port)
+	lib.SendMessage("Testing", node)
 
-	// TODO: Remove temporary DB below
 	// TODO: Remove temporary SQL DB below
 	db := database.DBConn
 	var students []Student

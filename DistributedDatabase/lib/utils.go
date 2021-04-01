@@ -55,7 +55,7 @@ func ExternalIP() (string, error) {
 	return "", errors.New("are you connected to the network?")
 }
 
-func sendMessage(message string, nodeData NodeData) {
+func SendMessage(message string, nodeData NodeData) {
 	fmt.Printf("Sending POST request to node server %d at %s:%s\n", nodeData.Id, nodeData.Ip, nodeData.Port)
 	msg, _ := json.Marshal(map[string]string{
 		"message": message,

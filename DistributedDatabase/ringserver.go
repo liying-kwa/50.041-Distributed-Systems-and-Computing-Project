@@ -18,17 +18,17 @@ import (
 
 var wg = &sync.WaitGroup{}
 
-type RingServer struct {
-	ip   string
-	port string
-	ring lib.Ring
-}
-
 // TODO: Confirm key-value names
 type Student struct {
 	gorm.Model
 	Studentid int    `json:"key"`
 	Course    string `json:"value"`
+}
+
+type RingServer struct {
+	ip   string
+	port string
+	ring lib.Ring
 }
 
 // Initiate socket of ring on port 5001 (for communication with node server)
@@ -112,6 +112,8 @@ func main() {
 
 	theRingServer := newRingServer()
 	go theRingServer.start()
+
+	api.GetRingStructure(&theRingServer.ring)
 
 	log.Print(fmt.Sprintf("[RingServer] To test, visit %s:%s/api/v1/student", ip, "3001"))
 
