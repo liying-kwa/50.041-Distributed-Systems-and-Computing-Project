@@ -42,6 +42,8 @@ func (n *Node) addNodeToRing() {
 func listen(w http.ResponseWriter, r *http.Request) {
 	// TODO: Read the message and take necessary action
 	fmt.Printf("[NodeServer] Receiving Message from Node %s\n", r.RemoteAddr)
+	// HTTP response
+	fmt.Fprintf(w, "ACK")
 }
 
 func main() {

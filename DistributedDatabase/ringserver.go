@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"math"
 	"math/rand"
 	"net/http"
+	"sort"
 	"sync"
 
 	"github.com/gofiber/fiber/v2"
@@ -88,6 +90,37 @@ func initDatabase() {
 	}
 }
 
+//   function to allocate the given CourseId to a node and return that node's ip:port
+func (ringServer *RingServer) AllocateKey(key string) string {
+	nodeMap := ringServer.ring.RingNodeDataMap
+	keyHash := lib.HashMD5(key, lib.MAX_KEYS)
+	var lowest int
+	lowest = math.MaxInt32
+
+	for key := range nodeMap {
+		if key < lowest {
+			lowest = key
+		}
+	}
+
+	keys := make([]int, len(nodeMap))
+	i := 0
+	for k := range nodeMap {
+		keys[i] = k
+		i++
+	}
+	sort.Ints(keys)
+	for _, key := range keys {
+		if keyHash <= key {
+			nodeURL := fmt.Sprintf("%s:%s", nodeMap[key].Ip, nodeMap[key].Port)
+			return nodeURL
+		}
+	}
+
+	nodeURL := fmt.Sprintf("%s:%s", nodeMap[lowest].Ip, nodeMap[lowest].Port)
+	return nodeURL
+}
+
 // Receive POST request from :5001/add-node
 func (ringServer *RingServer) addNodeHandler(w http.ResponseWriter, r *http.Request) {
 	log.Printf("[RingServer] Receiving Registration from Node %s", r.RemoteAddr)
@@ -120,21 +153,19 @@ func (ringServer *RingServer) addNodeHandler(w http.ResponseWriter, r *http.Requ
 	}
 
 	// Add node to ring
-
-	print(random)
 	(*nodeMap)[random] = nodeData
-	fmt.Println(nodeMap)
+	fmt.Printf("Ring Structure: %v\n", *nodeMap)
 
 	//---------------------- uncomment block below to just test the hashing function----------------//
-	var CourseID string
-	CourseID = "50005"
-	nodeURL := lib.AllocateKey(CourseID)
-	fmt.Println(nodeURL)
+	// var CourseID string
+	// CourseID = "50005"
+	// nodeURL := ringServer.AllocateKey(CourseID)
+	// fmt.Println(nodeURL)
 
-	var CourseIDTwo string
-	CourseIDTwo = "500115"
-	nodeURL2 := lib.AllocateKey(CourseIDTwo)
-	fmt.Println(nodeURL2)
+	// var CourseIDTwo string
+	// CourseIDTwo = "500115"
+	// nodeURL2 := ringServer.AllocateKey(CourseIDTwo)
+	// fmt.Println(nodeURL2)
 	//---------------------- uncomment block above to just test the hashing function----------------//
 
 	// HTTP response

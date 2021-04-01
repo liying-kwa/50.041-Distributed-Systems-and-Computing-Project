@@ -27,10 +27,12 @@ func GetRingStructure(ring *lib.Ring) {
 
 // GET all student carts
 func GetStudents(c *fiber.Ctx) error {
-	node := Ring.RingNodeDataMap
-	fmt.Println(node)
-	// fmt.Printf("Received GET request, forwarding request to Node %d at %s:%s\n", node.Id, node.Ip, node.Port)
-	// lib.SendMessage("Testing", node)
+	// TODO: To get the IP address of the node you want to talk to from the NodeMap. Temp using hard-coded socket.
+	nodeMap := Ring.RingNodeDataMap
+	fmt.Printf("Ring Structure: %v\n", nodeMap)
+	node := lib.NodeData{Id: 0, Ip: "192.168.56.1", Port: "6001"}
+	fmt.Printf("Received GET request from Frontend, forwarding request to Node %d at %s:%s\n", node.Id, node.Ip, node.Port)
+	lib.SendMessage("Testing", node)
 
 	// TODO: Remove temporary SQL DB below
 	db := database.DBConn
