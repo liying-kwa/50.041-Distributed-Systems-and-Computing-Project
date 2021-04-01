@@ -2,11 +2,16 @@ package main
 
 import (
 	//"bufio"
+
+	"crypto/md5"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
+	"math"
+	"math/rand"
 	"net/http"
+	"sort"
 	"time"
 
 	"50.041-Distributed-Systems-and-Computing-Project/DistributedDatabase/lib"
@@ -24,14 +29,55 @@ func newRingServer() RingServer {
 		ip,
 		"5001",
 		lib.Ring{
-			lib.RING_MAX_ID,
 			make(map[int]lib.NodeData),
 		},
 	}
 }
 
+// md5 hashing
+func HashMD5(text string, max int) int {
+	byteArray := md5.Sum([]byte(text))
+	var output int
+	for _, num := range byteArray {
+		output += int(num)
+	}
+	return output % max
+}
+
+//   function to allocate the given CourseId to a node and return that node's ip:port
+func (ringServer *RingServer) AllocateKey(key string) string {
+	nodeMap := ringServer.ring.RingNodeDataMap
+	keyHash := HashMD5(key, lib.MAX_KEYS)
+	var lowest int
+	lowest = math.MaxInt32
+
+	for key := range nodeMap {
+		if key < lowest {
+			lowest = key
+		}
+	}
+
+	keys := make([]int, len(nodeMap))
+	i := 0
+	for k := range nodeMap {
+		keys[i] = k
+		i++
+	}
+	sort.Ints(keys)
+	for _, key := range keys {
+		if keyHash <= key {
+			nodeURL := fmt.Sprintf("%s:%s", nodeMap[key].Ip, nodeMap[key].Port)
+			return nodeURL
+		}
+	}
+
+	nodeURL := fmt.Sprintf("%s:%s", nodeMap[lowest].Ip, nodeMap[lowest].Port)
+	return nodeURL
+}
+
 func (ringServer RingServer) start() {
 	http.HandleFunc("/add-node", ringServer.addNodeHandler)
+	// http.HandleFunc("/test", ringServer.test)
 	//http.HandleFunc("/faint-node", ringServer.FaintNodeHandler)
 	//http.HandleFunc("/remove-node", ringServer.RemoveNodeHandler)
 	//http.HandleFunc("/revive-node", ringServer.ReviveNodeHandler)
@@ -45,10 +91,45 @@ func (ringServer RingServer) start() {
 func (ringServer *RingServer) addNodeHandler(w http.ResponseWriter, r *http.Request) {
 	log.Printf("[RingServer] Receiving Registration from a Node")
 	body, _ := ioutil.ReadAll(r.Body)
+	nodeMap := ringServer.ring.RingNodeDataMap
 	var nodeData lib.NodeData
 	json.Unmarshal(body, &nodeData)
-	// Add node to ring
-	ringServer.ring.RingNodeDataMap[nodeData.Id] = nodeData
+
+	// creating a random key between 0 and 100
+	var random int
+	random = rand.Intn(lib.MAX_KEYS)
+
+	// interim array to iterate through the keys easier
+	keys := make([]int, len(nodeMap))
+	i := 0
+	for k := range nodeMap {
+		keys[i] = k
+		i++
+	}
+
+	// making sure that the assigned key has not alr been assigned before
+	idx := 0
+	for idx < len(keys) {
+		if random == keys[idx] {
+			random = rand.Intn(lib.MAX_KEYS)
+			idx = 0
+		}
+		idx++
+	}
+
+	nodeMap[random] = nodeData
+
+	//---------------------- uncomment block below to just test the hashing function----------------//
+	// var CourseID string
+	// CourseID = "50005"
+	// nodeURL := ringServer.AllocateKey(CourseID)
+	// fmt.Println(nodeURL)
+
+	// var CourseIDTwo string
+	// CourseIDTwo = "500115"
+	// nodeURL2 := ringServer.AllocateKey(CourseIDTwo)
+	// fmt.Println(nodeURL2)
+	//---------------------- uncomment block above to just test the hashing function----------------//
 	fmt.Fprintf(w, "Successlly added node to ring! ")
 }
 
@@ -63,14 +144,16 @@ func main() {
 	println(theRingServer.ring.RingNodeDataMap[0].Ip)
 	println(theRingServer.ring.RingNodeDataMap[0].Port)
 
-	/* reader := bufio.NewReader(os.Stdin)
-	for {
-		fmt.Printf("RingServer> ")
-		cmdString, err := reader.ReadString('\n')
-		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
-		}
-		fmt.Printf("Command given: %s \n", cmdString)
-	} */
+	//---------------------- uncomment block below to keep RingServer up ----------------//
+
+	// reader := bufio.NewReader(os.Stdin)
+	// for {
+	// 	fmt.Printf("RingServer> ")
+	// 	cmdString, err := reader.ReadString('\n')
+	// 	if err != nil {
+	// 		fmt.Fprintln(os.Stderr, err)
+	// 	}
+	// 	fmt.Printf("Command given: %s \n", cmdString)
+	// }
 
 }
