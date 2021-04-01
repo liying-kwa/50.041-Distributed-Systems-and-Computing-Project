@@ -32,6 +32,7 @@ func newRingServer() RingServer {
 
 func (ringServer RingServer) start() {
 	http.HandleFunc("/add-node", ringServer.addNodeHandler)
+	http.HandleFunc("/get", ringServer.getDataHandler)
 	//http.HandleFunc("/faint-node", ringServer.FaintNodeHandler)
 	//http.HandleFunc("/remove-node", ringServer.RemoveNodeHandler)
 	//http.HandleFunc("/revive-node", ringServer.ReviveNodeHandler)
