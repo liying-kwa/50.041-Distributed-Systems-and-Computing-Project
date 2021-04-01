@@ -57,7 +57,7 @@ func main() {
 	theRingServer := newRingServer()
 	go theRingServer.start()
 
-	time.Sleep(time.Second * 10)
+	time.Sleep(time.Second * 20)
 
 	println(theRingServer.ring.RingNodeDataMap[0].Id)
 	println(theRingServer.ring.RingNodeDataMap[0].Ip)
