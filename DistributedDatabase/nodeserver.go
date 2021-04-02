@@ -15,36 +15,43 @@ import (
 )
 
 type Node struct {
-	id   int
-	ip   string
-	port string
+	Id   int
+	Ip   string
+	Port string
 
-	ringServerIp   string
-	ringServerPort string
-	//ring           *lib.Ring
+	ConnectedToRing bool
+	RingServerIp    string
+	RingServerPort  string
+	//Ring           *lib.Ring
 }
 
-func newNode(id int, portNo string) Node {
+func newNode(id int, portNo string) *Node {
 	ip, _ := lib.ExternalIP()
-	return Node{id, ip, portNo, lib.RING_IP, lib.RING_PORT}
+	return &Node{id, ip, portNo, false, lib.RING_IP, lib.RING_PORT}
 }
 
 func (n *Node) addNodeToRing() {
-	nodeData := lib.NodeData{n.id, n.ip, n.port}
+	nodeData := lib.NodeData{n.Id, n.Ip, n.Port}
 	requestBody, _ := json.Marshal(nodeData)
 	// Send to ring server
-	postURL := fmt.Sprintf("http://%s:%s/add-node", n.ringServerIp, n.ringServerPort)
+	postURL := fmt.Sprintf("http://%s:%s/add-node", n.RingServerIp, n.RingServerPort)
 	resp, _ := http.Post(postURL, "application/json", bytes.NewReader(requestBody))
 	defer resp.Body.Close()
 	body, _ := ioutil.ReadAll(resp.Body)
 	//Checks response from registering with ring server
-	fmt.Println("Response from registering w Ring Server: ", string(body))
+	if resp.StatusCode == 200 {
+		//fmt.Println("Response from registering w Ring Server: ", string(body))
+		n.ConnectedToRing = true
+		fmt.Println("Successfully registered in ring!")
+	} else {
+		fmt.Println("Failed to register. Reason: ", string(body))
+	}
 }
 
 func main() {
 
-	//aNode := newNode(0)
-	//aNode.addNodeToRing()
+	thisNode := newNode(0, "-1")
+	//thisNode.addNodeToRing()
 
 	for {
 		fmt.Printf("NodeServer> ")
@@ -52,14 +59,19 @@ func main() {
 		//fmt.Printf("Command given by NodeServer: %s \n", cmdString)
 		tokens := strings.Fields(cmdString)
 		if len(tokens) == 0 {
-			fmt.Println("Please enter a command.")
+			fmt.Println("Please enter a command. Use 'help' to see available commands.")
 			continue
 		}
 		cmd := tokens[0]
 		switch cmd {
 
 		case "help":
-			fmt.Println("Commands accepted: start")
+			fmt.Println("Commands accepted: help, info, start")
+
+		case "info":
+			nodeJson, _ := json.Marshal(thisNode)
+			fmt.Println("Node information:")
+			fmt.Println(string(nodeJson))
 
 		case "start":
 			if len(tokens) < 2 {
@@ -72,14 +84,14 @@ func main() {
 				break
 			}
 			if portNo >= 0 && portNo <= 65353 {
-				aNode := newNode(0, strconv.Itoa(portNo))
-				aNode.addNodeToRing()
+				thisNode.Port = strconv.Itoa(portNo)
+				thisNode.addNodeToRing()
 			} else {
 				fmt.Println("Invalid port number, must be between 0 and 65353")
 			}
 
 		default:
-			fmt.Println("Unknown command.")
+			fmt.Println("Unknown command. Use 'help' to see available commands.")
 
 		}
 	}
