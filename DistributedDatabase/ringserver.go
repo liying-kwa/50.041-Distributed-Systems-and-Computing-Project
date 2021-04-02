@@ -1,8 +1,7 @@
 package main
 
 import (
-	//"bufio"
-
+	"bufio"
 	"crypto/md5"
 	"encoding/json"
 	"fmt"
@@ -11,16 +10,18 @@ import (
 	"math"
 	"math/rand"
 	"net/http"
+	"os"
 	"sort"
+	"strings"
 	"time"
 
 	"50.041-Distributed-Systems-and-Computing-Project/DistributedDatabase/lib"
 )
 
 type RingServer struct {
-	ip   string
-	port string
-	ring lib.Ring
+	Ip   string
+	Port string
+	Ring lib.Ring
 }
 
 func newRingServer() RingServer {
@@ -46,7 +47,7 @@ func HashMD5(text string, max int) int {
 
 //   function to allocate the given CourseId to a node and return that node's ip:port
 func (ringServer *RingServer) AllocateKey(key string) string {
-	nodeMap := ringServer.ring.RingNodeDataMap
+	nodeMap := ringServer.Ring.RingNodeDataMap
 	keyHash := HashMD5(key, lib.MAX_KEYS)
 	var lowest int
 	lowest = math.MaxInt32
@@ -76,33 +77,47 @@ func (ringServer *RingServer) AllocateKey(key string) string {
 }
 
 func (ringServer RingServer) start() {
-	http.HandleFunc("/add-node", ringServer.addNodeHandler)
+	http.HandleFunc("/add-node", ringServer.AddNodeHandler)
 	// http.HandleFunc("/test", ringServer.test)
 	//http.HandleFunc("/faint-node", ringServer.FaintNodeHandler)
-	//http.HandleFunc("/remove-node", ringServer.RemoveNodeHandler)
+	http.HandleFunc("/remove-node", ringServer.RemoveNodeHandler)
 	//http.HandleFunc("/revive-node", ringServer.ReviveNodeHandler)
 	//http.HandleFunc("/get-node", ringServer.GetNodeHandler)
 	//http.HandleFunc("/hb", ringServer.HeartBeatHandler)
 	//http.HandleFunc("/get-ring", ringServer.GetRingHandler)
-	log.Print(fmt.Sprintf("[RingServer] Started and Listening at %s:%s.", ringServer.ip, ringServer.port))
-	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%s", ringServer.port), nil))
+	log.Print(fmt.Sprintf("[RingServer] Started and Listening at %s:%s.", ringServer.Ip, ringServer.Port))
+	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%s", ringServer.Port), nil))
 }
 
-func (ringServer *RingServer) addNodeHandler(w http.ResponseWriter, r *http.Request) {
-	log.Printf("[RingServer] Receiving Registration from a Node")
+func (ringServer *RingServer) AddNodeHandler(w http.ResponseWriter, r *http.Request) {
+	log.Printf("[RingServer] Receiving Registration Request from a Node")
 	body, _ := ioutil.ReadAll(r.Body)
-	nodeMap := ringServer.ring.RingNodeDataMap
 	var nodeData lib.NodeData
 	json.Unmarshal(body, &nodeData)
+	ringNodeDataMap := ringServer.Ring.RingNodeDataMap
 
-	// creating a random key between 0 and 100
-	var random int
-	random = rand.Intn(lib.MAX_KEYS)
+	// Check if node is already in ring structure
+	for _, nd := range ringNodeDataMap {
+		if nd.Ip == nodeData.Ip && nd.Port == nodeData.Port {
+			fmt.Printf("Node %s:%s tries to connect but already registered previously. \n", nodeData.Ip, nodeData.Port)
+			w.WriteHeader(http.StatusConflict)
+			w.Write([]byte("409 Conflict -- Already registered"))
+			return
+		}
+	}
 
-	// interim array to iterate through the keys easier
-	keys := make([]int, len(nodeMap))
+	// Assign a random (but unique) key to the node and add to ring
+	randomKey := rand.Intn(lib.MAX_KEYS)
+	_, taken := ringNodeDataMap[randomKey]
+	for taken == true {
+		randomKey = rand.Intn(lib.MAX_KEYS)
+		_, taken = ringNodeDataMap[randomKey]
+	}
+
+	/* // interim array to iterate through the keys easier
+	keys := make([]int, len(ringNodeDataMap))
 	i := 0
-	for k := range nodeMap {
+	for k := range ringNodeDataMap {
 		keys[i] = k
 		i++
 	}
@@ -115,9 +130,13 @@ func (ringServer *RingServer) addNodeHandler(w http.ResponseWriter, r *http.Requ
 			idx = 0
 		}
 		idx++
-	}
+	} */
 
-	nodeMap[random] = nodeData
+	// Add node to ring
+	fmt.Printf("Adding node %s:%s to the ring... \n", nodeData.Ip, nodeData.Port)
+	ringNodeDataMap[randomKey] = nodeData
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("200 OK -- Successlly added node to ring!"))
 
 	//---------------------- uncomment block below to just test the hashing function----------------//
 	// var CourseID string
@@ -130,30 +149,86 @@ func (ringServer *RingServer) addNodeHandler(w http.ResponseWriter, r *http.Requ
 	// nodeURL2 := ringServer.AllocateKey(CourseIDTwo)
 	// fmt.Println(nodeURL2)
 	//---------------------- uncomment block above to just test the hashing function----------------//
-	fmt.Fprintf(w, "Successlly added node to ring! ")
+
+	//fmt.Fprintf(w, "Successlly added node to ring! ")
+
+}
+
+func (ringServer *RingServer) RemoveNodeHandler(w http.ResponseWriter, r *http.Request) {
+	log.Printf("[RingServer] Receiving De-registration Request from a Node")
+	body, _ := ioutil.ReadAll(r.Body)
+	var nodeData lib.NodeData
+	json.Unmarshal(body, &nodeData)
+	ringNodeDataMap := ringServer.Ring.RingNodeDataMap
+
+	// Check if node is already NOT in ring structure
+	notInside := true
+	assignedKey := -1
+	for key, nd := range ringNodeDataMap {
+		if nd.Ip == nodeData.Ip && nd.Port == nodeData.Port {
+			notInside = false
+			assignedKey = key
+			break
+		}
+	}
+	if notInside == true {
+		fmt.Printf("Node %s:%s tries to de-register but is already NOT in ring. \n", nodeData.Ip, nodeData.Port)
+		w.WriteHeader(http.StatusConflict)
+		w.Write([]byte("409 Conflict -- Already NOT in ring"))
+		return
+	}
+
+	// Remove node from ring
+	fmt.Printf("Removing node %s:%s from the ring... \n", nodeData.Ip, nodeData.Port)
+	delete(ringNodeDataMap, assignedKey)
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("200 OK -- Successlly removed node from ring!"))
 }
 
 func main() {
 
 	theRingServer := newRingServer()
 	go theRingServer.start()
+	time.Sleep(time.Second * 3)
 
-	time.Sleep(time.Second * 20)
+	for {
+		fmt.Printf("RingServer> ")
+		cmdString, _ := bufio.NewReader(os.Stdin).ReadString('\n')
+		cmdString = strings.TrimSpace(cmdString)
+		//fmt.Printf("Command given by RingServer: %s \n", cmdString)
+		tokens := strings.Fields(cmdString)
+		if len(tokens) == 0 {
+			fmt.Println("Please enter a command. Use 'help' to see available commands.")
+			continue
+		}
 
-	println(theRingServer.ring.RingNodeDataMap[0].Id)
-	println(theRingServer.ring.RingNodeDataMap[0].Ip)
-	println(theRingServer.ring.RingNodeDataMap[0].Port)
+		cmd := tokens[0]
+		switch cmd {
 
-	//---------------------- uncomment block below to keep RingServer up ----------------//
+		case "help":
+			fmt.Println("Commands accepted: help, info, ring")
 
-	// reader := bufio.NewReader(os.Stdin)
-	// for {
-	// 	fmt.Printf("RingServer> ")
-	// 	cmdString, err := reader.ReadString('\n')
-	// 	if err != nil {
-	// 		fmt.Fprintln(os.Stderr, err)
-	// 	}
-	// 	fmt.Printf("Command given: %s \n", cmdString)
-	// }
+		case "info":
+			ringserverJson, _ := json.Marshal(theRingServer)
+			fmt.Println("RingServer information:")
+			fmt.Println(string(ringserverJson))
+
+		case "ring":
+			if len(theRingServer.Ring.RingNodeDataMap) == 0 {
+				fmt.Println("Ring is empty at the moment.")
+			} else {
+				for key, nd := range theRingServer.Ring.RingNodeDataMap {
+					nodeDataJson, _ := json.Marshal(nd)
+					fmt.Printf("key=%d, %s \n", key, string(nodeDataJson))
+				}
+			}
+
+		default:
+			fmt.Println("Unknown command. Use 'help' to see available commands.")
+
+		}
+
+		fmt.Println()
+	}
 
 }
