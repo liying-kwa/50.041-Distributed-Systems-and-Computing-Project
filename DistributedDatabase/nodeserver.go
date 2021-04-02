@@ -35,7 +35,11 @@ func (n *Node) addNodeToRing() {
 	requestBody, _ := json.Marshal(nodeData)
 	// Send to ring server
 	postURL := fmt.Sprintf("http://%s:%s/add-node", n.RingServerIp, n.RingServerPort)
-	resp, _ := http.Post(postURL, "application/json", bytes.NewReader(requestBody))
+	resp, err := http.Post(postURL, "application/json", bytes.NewReader(requestBody))
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
 	defer resp.Body.Close()
 	body, _ := ioutil.ReadAll(resp.Body)
 	//Checks response from registering with ring server
@@ -66,14 +70,14 @@ func main() {
 		switch cmd {
 
 		case "help":
-			fmt.Println("Commands accepted: help, info, start")
+			fmt.Println("Commands accepted: help, info, register")
 
 		case "info":
 			nodeJson, _ := json.Marshal(thisNode)
 			fmt.Println("Node information:")
 			fmt.Println(string(nodeJson))
 
-		case "start":
+		case "register":
 			if len(tokens) < 2 {
 				fmt.Println("Please specify a port number.")
 				continue
