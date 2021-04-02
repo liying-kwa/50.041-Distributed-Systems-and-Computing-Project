@@ -106,11 +106,15 @@ func (ringServer *RingServer) addNodeHandler(w http.ResponseWriter, r *http.Requ
 		}
 	}
 
-	// creating a random key between 0 and 100
-	var random int
-	random = rand.Intn(lib.MAX_KEYS)
+	// Assign a random (but unique) key to the node
+	randomKey := rand.Intn(lib.MAX_KEYS)
+	_, taken := ringNodeDataMap[randomKey]
+	for taken == true {
+		randomKey = rand.Intn(lib.MAX_KEYS)
+		_, taken = ringNodeDataMap[randomKey]
+	}
 
-	// interim array to iterate through the keys easier
+	/* // interim array to iterate through the keys easier
 	keys := make([]int, len(ringNodeDataMap))
 	i := 0
 	for k := range ringNodeDataMap {
@@ -126,9 +130,9 @@ func (ringServer *RingServer) addNodeHandler(w http.ResponseWriter, r *http.Requ
 			idx = 0
 		}
 		idx++
-	}
+	} */
 
-	ringNodeDataMap[random] = nodeData
+	ringNodeDataMap[randomKey] = nodeData
 
 	//---------------------- uncomment block below to just test the hashing function----------------//
 	// var CourseID string
