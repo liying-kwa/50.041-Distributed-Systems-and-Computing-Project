@@ -3,6 +3,7 @@ package main
 import (
 	//"bufio"
 
+	"bufio"
 	"crypto/md5"
 	"encoding/json"
 	"fmt"
@@ -11,7 +12,9 @@ import (
 	"math"
 	"math/rand"
 	"net/http"
+	"os"
 	"sort"
+	"strings"
 	"time"
 
 	"50.041-Distributed-Systems-and-Computing-Project/DistributedDatabase/lib"
@@ -138,22 +141,43 @@ func main() {
 	theRingServer := newRingServer()
 	go theRingServer.start()
 
-	time.Sleep(time.Second * 20)
+	time.Sleep(time.Second)
 
-	println(theRingServer.ring.RingNodeDataMap[0].Id)
-	println(theRingServer.ring.RingNodeDataMap[0].Ip)
-	println(theRingServer.ring.RingNodeDataMap[0].Port)
+	//println(theRingServer.ring.RingNodeDataMap[0].Id)
+	//println(theRingServer.ring.RingNodeDataMap[0].Ip)
+	//println(theRingServer.ring.RingNodeDataMap[0].Port)
 
 	//---------------------- uncomment block below to keep RingServer up ----------------//
 
-	// reader := bufio.NewReader(os.Stdin)
-	// for {
-	// 	fmt.Printf("RingServer> ")
-	// 	cmdString, err := reader.ReadString('\n')
-	// 	if err != nil {
-	// 		fmt.Fprintln(os.Stderr, err)
-	// 	}
-	// 	fmt.Printf("Command given: %s \n", cmdString)
-	// }
+	for {
+		fmt.Printf("RingServer> ")
+		cmdString, _ := bufio.NewReader(os.Stdin).ReadString('\n')
+		cmdString = strings.TrimSpace(cmdString)
+		//fmt.Printf("Command given by RingServer: %s \n", cmdString)
+		tokens := strings.Fields(cmdString)
+		if len(tokens) == 0 {
+			fmt.Println("Please enter a command.")
+			continue
+		}
+		cmd := tokens[0]
+		switch cmd {
+
+		case "help":
+			fmt.Println("Commands accepted: ring")
+
+		case "ring":
+			if len(theRingServer.ring.RingNodeDataMap) == 0 {
+				fmt.Println("Ring is empty at the moment.")
+			} else {
+				for key, nd := range theRingServer.ring.RingNodeDataMap {
+					nodeDataJson, _ := json.Marshal(nd)
+					fmt.Printf("key=%d, %s \n", key, string(nodeDataJson))
+				}
+			}
+		default:
+			fmt.Println("Unknown command.")
+
+		}
+	}
 
 }

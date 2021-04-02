@@ -47,16 +47,25 @@ func main() {
 	//aNode.addNodeToRing()
 
 	for {
-		fmt.Printf("Ringserver> ")
-		input, _ := bufio.NewReader(os.Stdin).ReadString('\n')
-		fmt.Printf("Command given by node: %s \n", input)
-		tokens := strings.Fields(input)
-		command := tokens[0]
-		switch command {
+		fmt.Printf("NodeServer> ")
+		cmdString, _ := bufio.NewReader(os.Stdin).ReadString('\n')
+		//fmt.Printf("Command given by NodeServer: %s \n", cmdString)
+		tokens := strings.Fields(cmdString)
+		if len(tokens) == 0 {
+			fmt.Println("Please enter a command.")
+			continue
+		}
+		cmd := tokens[0]
+		switch cmd {
+
 		case "help":
 			fmt.Println("Commands accepted: start")
 
 		case "start":
+			if len(tokens) < 2 {
+				fmt.Println("Please specify a port number.")
+				continue
+			}
 			portNo, err := strconv.Atoi(tokens[1])
 			if err != nil {
 				fmt.Println("Invalid port number, must be an integer.")
@@ -71,6 +80,7 @@ func main() {
 
 		default:
 			fmt.Println("Unknown command.")
+
 		}
 	}
 
