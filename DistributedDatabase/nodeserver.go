@@ -42,13 +42,32 @@ func (n *Node) addNodeToRing() {
 	}
 	defer resp.Body.Close()
 	body, _ := ioutil.ReadAll(resp.Body)
-	//Checks response from registering with ring server
+	//Checks response from ring server
 	if resp.StatusCode == 200 {
-		//fmt.Println("Response from registering w Ring Server: ", string(body))
 		n.ConnectedToRing = true
-		fmt.Println("Successfully registered in ring!")
+		fmt.Println("Successfully registered. Response:", string(body))
 	} else {
-		fmt.Println("Failed to register. Reason: ", string(body))
+		fmt.Println("Failed to register. Response:", string(body))
+	}
+}
+
+func (n *Node) removeNodeFromRing() {
+	nodeData := lib.NodeData{n.Id, n.Ip, n.Port}
+	requestBody, _ := json.Marshal(nodeData)
+	postURL := fmt.Sprintf("http://%s:%s/remove-node", n.RingServerIp, n.RingServerPort)
+	resp, err := http.Post(postURL, "application/json", bytes.NewReader(requestBody))
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	defer resp.Body.Close()
+	body, _ := ioutil.ReadAll(resp.Body)
+	//Checks response from ring server
+	if resp.StatusCode == 200 {
+		n.ConnectedToRing = false
+		fmt.Println("Successfully de-registered. Response:", string(body))
+	} else {
+		fmt.Println("Failed to de-register. Reason:", string(body))
 	}
 }
 
@@ -66,11 +85,12 @@ func main() {
 			fmt.Println("Please enter a command. Use 'help' to see available commands.")
 			continue
 		}
+
 		cmd := tokens[0]
 		switch cmd {
 
 		case "help":
-			fmt.Println("Commands accepted: help, info, register")
+			fmt.Println("Commands accepted: help, info, register, deregister")
 
 		case "info":
 			nodeJson, _ := json.Marshal(thisNode)
@@ -94,10 +114,15 @@ func main() {
 				fmt.Println("Invalid port number, must be between 0 and 65353")
 			}
 
+		case "deregister":
+			thisNode.removeNodeFromRing()
+
 		default:
 			fmt.Println("Unknown command. Use 'help' to see available commands.")
 
 		}
+
+		fmt.Println()
 	}
 
 }
