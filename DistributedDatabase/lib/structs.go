@@ -10,3 +10,16 @@ type NodeData struct {
 	Ip   string
 	Port string
 }
+
+type Message struct {
+	Type     MessageType
+	CourseId string
+	Count    int
+}
+
+type MessageType int
+
+const (
+	Get MessageType = iota
+	Put
+)

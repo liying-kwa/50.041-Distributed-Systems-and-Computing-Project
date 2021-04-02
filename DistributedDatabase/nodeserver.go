@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"os"
 	"strconv"
@@ -27,7 +28,7 @@ type Node struct {
 
 func newNode(id int, portNo string) *Node {
 	ip, _ := lib.ExternalIP()
-	return &Node{id, ip, portNo, false, lib.RING_IP, lib.RING_PORT}
+	return &Node{id, ip, portNo, false, lib.RINGSERVER_IP, lib.RINGSERVER_NODES_PORT}
 }
 
 func (n *Node) addNodeToRing() {
@@ -45,6 +46,7 @@ func (n *Node) addNodeToRing() {
 	//Checks response from ring server
 	if resp.StatusCode == 200 {
 		n.ConnectedToRing = true
+		go n.listenToRing(n.Port)
 		fmt.Println("Successfully registered. Response:", string(body))
 	} else {
 		fmt.Println("Failed to register. Response:", string(body))
@@ -69,6 +71,31 @@ func (n *Node) removeNodeFromRing() {
 	} else {
 		fmt.Println("Failed to de-register. Reason:", string(body))
 	}
+}
+
+func (n *Node) listenToRing(portNo string) {
+	http.HandleFunc("/read", n.ReadHandler)
+	//http.HandleFunc("/write", n.WriteHandler)
+	log.Print(fmt.Sprintf("[NodeServer] Started and Listening at %s:%s.", n.Ip, n.Port))
+	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%s", n.Port), nil))
+}
+
+func (n *Node) ReadHandler(w http.ResponseWriter, r *http.Request) {
+	log.Printf("[NodeServer] Received Read Request from RingServer")
+	body, _ := ioutil.ReadAll(r.Body)
+	var message lib.Message
+	json.Unmarshal(body, &message)
+	filename := "./" + message.CourseId
+	data, err := ioutil.ReadFile(filename)
+	if err != nil {
+		fmt.Println(err)
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(err.Error()))
+		return
+	}
+	fmt.Println("Returning count:", string(data))
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(string(data)))
 }
 
 func main() {
