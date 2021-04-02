@@ -5,10 +5,8 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
-	"math"
 	"math/rand"
 	"net/http"
-	"sort"
 	"sync"
 
 	"github.com/gofiber/fiber/v2"
@@ -57,7 +55,7 @@ func setupRoutes(app *fiber.App) {
 }
 
 // Listening on port 5001 (for communication with node servers)
-func (ringServer RingServer) start() {
+func start(ringServer RingServer) {
 	http.HandleFunc("/add-node", ringServer.addNodeHandler)
 	//http.HandleFunc("/faint-node", ringServer.FaintNodeHandler)
 	//http.HandleFunc("/remove-node", ringServer.RemoveNodeHandler)
@@ -88,37 +86,6 @@ func initDatabase() {
 	for _, c := range students {
 		database.DBConn.Create(&c)
 	}
-}
-
-//   function to allocate the given CourseId to a node and return that node's ip:port
-func (ringServer *RingServer) AllocateKey(key string) string {
-	nodeMap := ringServer.ring.RingNodeDataMap
-	keyHash := lib.HashMD5(key, lib.MAX_KEYS)
-	var lowest int
-	lowest = math.MaxInt32
-
-	for key := range nodeMap {
-		if key < lowest {
-			lowest = key
-		}
-	}
-
-	keys := make([]int, len(nodeMap))
-	i := 0
-	for k := range nodeMap {
-		keys[i] = k
-		i++
-	}
-	sort.Ints(keys)
-	for _, key := range keys {
-		if keyHash <= key {
-			nodeURL := fmt.Sprintf("%s:%s", nodeMap[key].Ip, nodeMap[key].Port)
-			return nodeURL
-		}
-	}
-
-	nodeURL := fmt.Sprintf("%s:%s", nodeMap[lowest].Ip, nodeMap[lowest].Port)
-	return nodeURL
 }
 
 // Receive POST request from :5001/add-node
@@ -156,18 +123,6 @@ func (ringServer *RingServer) addNodeHandler(w http.ResponseWriter, r *http.Requ
 	(*nodeMap)[random] = nodeData
 	fmt.Printf("Ring Structure: %v\n", *nodeMap)
 
-	//---------------------- uncomment block below to just test the hashing function----------------//
-	// var CourseID string
-	// CourseID = "50005"
-	// nodeURL := ringServer.AllocateKey(CourseID)
-	// fmt.Println(nodeURL)
-
-	// var CourseIDTwo string
-	// CourseIDTwo = "500115"
-	// nodeURL2 := ringServer.AllocateKey(CourseIDTwo)
-	// fmt.Println(nodeURL2)
-	//---------------------- uncomment block above to just test the hashing function----------------//
-
 	// HTTP response
 	fmt.Fprintf(w, "Successlly added node to ring! ")
 }
@@ -181,9 +136,9 @@ func main() {
 	ip, _ := lib.ExternalIP()
 
 	theRingServer := newRingServer()
-	go theRingServer.start()
+	go start(theRingServer)
 
-	api.GetRingStructure(&theRingServer.ring)
+	api.GetRingStructure(theRingServer.ip, theRingServer.port, theRingServer.ring)
 
 	log.Print(fmt.Sprintf("[RingServer] To test, visit %s:%s/api/v1/student", ip, "3001"))
 

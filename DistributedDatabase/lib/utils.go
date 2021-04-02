@@ -66,7 +66,7 @@ func HashMD5(text string, max int) int {
 	return output % max
 }
 
-func SendMessage(message string, nodeData NodeData) {
+func SendMessage(message string, nodeData NodeData) string {
 	fmt.Printf("Sending POST request to NodeServer %d at %s:%s\n", nodeData.Id, nodeData.Ip, nodeData.Port)
 	msg, _ := json.Marshal(map[string]string{
 		"message": message,
@@ -80,4 +80,5 @@ func SendMessage(message string, nodeData NodeData) {
 	// Waits for HTTP response
 	body, _ := ioutil.ReadAll(resp.Body)
 	fmt.Printf("Response from registering w NodeServer %d: %s\n", nodeData.Id, string(body))
+	return string(body)
 }

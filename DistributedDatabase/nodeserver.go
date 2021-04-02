@@ -43,7 +43,7 @@ func listen(w http.ResponseWriter, r *http.Request) {
 	// TODO: Read the message and take necessary action
 	fmt.Printf("[NodeServer] Receiving Message from Ring Server\n")
 	// HTTP response
-	fmt.Fprintf(w, "ACK")
+	fmt.Fprintf(w, "Value: 100")
 }
 
 func main() {
