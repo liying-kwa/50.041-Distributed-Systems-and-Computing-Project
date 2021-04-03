@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"crypto/md5"
 	"encoding/json"
 	"fmt"
@@ -12,6 +13,7 @@ import (
 	"net/http"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -19,16 +21,18 @@ import (
 )
 
 type RingServer struct {
-	Ip   string
-	Port string
-	Ring lib.Ring
+	Ip           string
+	NodesPort    string
+	FrontendPort string
+	Ring         lib.Ring
 }
 
 func newRingServer() RingServer {
 	ip, _ := lib.ExternalIP()
 	return RingServer{
 		ip,
-		"5001",
+		lib.RINGSERVER_NODES_PORT,
+		lib.RINGSERVER_FRONTEND_PORT,
 		lib.Ring{
 			make(map[int]lib.NodeData),
 		},
@@ -46,7 +50,8 @@ func HashMD5(text string, max int) int {
 }
 
 //   function to allocate the given CourseId to a node and return that node's ip:port
-func (ringServer *RingServer) AllocateKey(key string) string {
+//func (ringServer *RingServer) AllocateKey(key string) string {
+func (ringServer *RingServer) AllocateKey(key string) lib.NodeData {
 	nodeMap := ringServer.Ring.RingNodeDataMap
 	keyHash := HashMD5(key, lib.MAX_KEYS)
 	var lowest int
@@ -67,26 +72,76 @@ func (ringServer *RingServer) AllocateKey(key string) string {
 	sort.Ints(keys)
 	for _, key := range keys {
 		if keyHash <= key {
-			nodeURL := fmt.Sprintf("%s:%s", nodeMap[key].Ip, nodeMap[key].Port)
-			return nodeURL
+			//nodeURL := fmt.Sprintf("%s:%s", nodeMap[key].Ip, nodeMap[key].Port)
+			//return nodeURL
+			return nodeMap[key]
 		}
 	}
 
-	nodeURL := fmt.Sprintf("%s:%s", nodeMap[lowest].Ip, nodeMap[lowest].Port)
-	return nodeURL
+	//nodeURL := fmt.Sprintf("%s:%s", nodeMap[lowest].Ip, nodeMap[lowest].Port)
+	//return nodeURL
+	return nodeMap[lowest]
 }
 
-func (ringServer RingServer) start() {
-	http.HandleFunc("/add-node", ringServer.AddNodeHandler)
+func (ringServer *RingServer) ReadFromNode(courseId string) string {
+	nodeData := ringServer.AllocateKey(courseId)
+	getURL := fmt.Sprintf("http://%s:%s/read?courseid=%s", nodeData.Ip, nodeData.Port, courseId)
+	resp, err := http.Get(getURL)
+	if err != nil {
+		fmt.Println(err)
+		return "-1"
+	}
+	defer resp.Body.Close()
+	body, _ := ioutil.ReadAll(resp.Body)
+	if resp.StatusCode == 200 {
+		fmt.Println("Successfully read from node. Response:", string(body))
+		return string(body)
+	} else {
+		fmt.Println("Failed to read from node. Reason:", string(body))
+		return "-1"
+	}
+}
+
+func (ringServer *RingServer) WriteToNode(courseId string, count string) {
+	countInt, err := strconv.Atoi(count)
+	if err != nil {
+		fmt.Println("Invalid count, must be an integer.")
+		return
+	}
+	if countInt < 0 {
+		fmt.Println("Invalid count, must be 0 or more")
+		return
+	}
+	message := lib.Message{lib.Get, courseId, count}
+	requestBody, _ := json.Marshal(message)
+	nodeData := ringServer.AllocateKey(courseId)
+	postURL := fmt.Sprintf("http://%s:%s/write", nodeData.Ip, nodeData.Port)
+	resp, err := http.Post(postURL, "application/json", bytes.NewReader(requestBody))
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	defer resp.Body.Close()
+	body, _ := ioutil.ReadAll(resp.Body)
+	//Checks response from node
+	if resp.StatusCode == 200 {
+		fmt.Println("Successfully wrote to node. Response:", string(body))
+	} else {
+		fmt.Println("Failed to write to node. Reason:", string(body))
+	}
+
+}
+
+// Listening on port 5001 for communication with Nodes
+func (ringServer RingServer) listenToNodes() {
 	// http.HandleFunc("/test", ringServer.test)
-	//http.HandleFunc("/faint-node", ringServer.FaintNodeHandler)
+	http.HandleFunc("/add-node", ringServer.AddNodeHandler)
 	http.HandleFunc("/remove-node", ringServer.RemoveNodeHandler)
 	//http.HandleFunc("/revive-node", ringServer.ReviveNodeHandler)
 	//http.HandleFunc("/get-node", ringServer.GetNodeHandler)
-	//http.HandleFunc("/hb", ringServer.HeartBeatHandler)
 	//http.HandleFunc("/get-ring", ringServer.GetRingHandler)
-	log.Print(fmt.Sprintf("[RingServer] Started and Listening at %s:%s.", ringServer.Ip, ringServer.Port))
-	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%s", ringServer.Port), nil))
+	log.Print(fmt.Sprintf("[RingServer] Started and Listening at %s:%s.", ringServer.Ip, ringServer.NodesPort))
+	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%s", ringServer.NodesPort), nil))
 }
 
 func (ringServer *RingServer) AddNodeHandler(w http.ResponseWriter, r *http.Request) {
@@ -114,29 +169,11 @@ func (ringServer *RingServer) AddNodeHandler(w http.ResponseWriter, r *http.Requ
 		_, taken = ringNodeDataMap[randomKey]
 	}
 
-	/* // interim array to iterate through the keys easier
-	keys := make([]int, len(ringNodeDataMap))
-	i := 0
-	for k := range ringNodeDataMap {
-		keys[i] = k
-		i++
-	}
-
-	// making sure that the assigned key has not alr been assigned before
-	idx := 0
-	for idx < len(keys) {
-		if random == keys[idx] {
-			random = rand.Intn(lib.MAX_KEYS)
-			idx = 0
-		}
-		idx++
-	} */
-
 	// Add node to ring
 	fmt.Printf("Adding node %s:%s to the ring... \n", nodeData.Ip, nodeData.Port)
 	ringNodeDataMap[randomKey] = nodeData
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("200 OK -- Successlly added node to ring!"))
+	w.Write([]byte("200 OK -- Successfully added node to ring!"))
 
 	//---------------------- uncomment block below to just test the hashing function----------------//
 	// var CourseID string
@@ -188,7 +225,7 @@ func (ringServer *RingServer) RemoveNodeHandler(w http.ResponseWriter, r *http.R
 func main() {
 
 	theRingServer := newRingServer()
-	go theRingServer.start()
+	go theRingServer.listenToNodes()
 	time.Sleep(time.Second * 3)
 
 	for {
@@ -222,6 +259,18 @@ func main() {
 					fmt.Printf("key=%d, %s \n", key, string(nodeDataJson))
 				}
 			}
+
+		// testing read
+		case "read":
+			courseId := tokens[1]
+			count := theRingServer.ReadFromNode(courseId)
+			fmt.Println("Returned count:", count)
+
+		// testing write
+		case "write":
+			courseId := tokens[1]
+			count := tokens[2]
+			theRingServer.WriteToNode(courseId, count)
 
 		default:
 			fmt.Println("Unknown command. Use 'help' to see available commands.")
