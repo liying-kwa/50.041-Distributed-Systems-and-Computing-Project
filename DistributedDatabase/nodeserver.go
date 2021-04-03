@@ -82,10 +82,16 @@ func (n *Node) listenToRing(portNo string) {
 
 func (n *Node) ReadHandler(w http.ResponseWriter, r *http.Request) {
 	log.Printf("[NodeServer] Received Read Request from RingServer")
-	body, _ := ioutil.ReadAll(r.Body)
-	var message lib.Message
-	json.Unmarshal(body, &message)
-	filename := "./" + message.CourseId
+	courseIdArray, ok := r.URL.Query()["courseid"]
+	if !ok || len(courseIdArray) < 1 {
+		problem := "Query parameter 'courseid' is missing"
+		fmt.Println(problem)
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(problem))
+		return
+	}
+	courseId := courseIdArray[0]
+	filename := "./" + string(courseId)
 	data, err := ioutil.ReadFile(filename)
 	if err != nil {
 		fmt.Println(err)

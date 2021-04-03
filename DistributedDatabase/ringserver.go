@@ -84,18 +84,15 @@ func (ringServer *RingServer) AllocateKey(key string) lib.NodeData {
 }
 
 func (ringServer *RingServer) ReadFromNode(courseId string) string {
-	message := lib.Message{lib.Get, courseId, "-1"}
-	requestBody, _ := json.Marshal(message)
 	nodeData := ringServer.AllocateKey(courseId)
-	postURL := fmt.Sprintf("http://%s:%s/read", nodeData.Ip, nodeData.Port)
-	resp, err := http.Post(postURL, "application/json", bytes.NewReader(requestBody))
+	getURL := fmt.Sprintf("http://%s:%s/read?courseid=%s", nodeData.Ip, nodeData.Port, courseId)
+	resp, err := http.Get(getURL)
 	if err != nil {
 		fmt.Println(err)
 		return "-1"
 	}
 	defer resp.Body.Close()
 	body, _ := ioutil.ReadAll(resp.Body)
-	//Checks response from node
 	if resp.StatusCode == 200 {
 		fmt.Println("Successfully read from node. Response:", string(body))
 		return string(body)
