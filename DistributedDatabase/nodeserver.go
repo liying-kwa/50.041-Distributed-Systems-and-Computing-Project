@@ -75,7 +75,7 @@ func (n *Node) removeNodeFromRing() {
 
 func (n *Node) listenToRing(portNo string) {
 	http.HandleFunc("/read", n.ReadHandler)
-	//http.HandleFunc("/write", n.WriteHandler)
+	http.HandleFunc("/write", n.WriteHandler)
 	log.Print(fmt.Sprintf("[NodeServer] Started and Listening at %s:%s.", n.Ip, n.Port))
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%s", n.Port), nil))
 }
@@ -96,6 +96,25 @@ func (n *Node) ReadHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("Returning count:", string(data))
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(string(data)))
+}
+
+func (n *Node) WriteHandler(w http.ResponseWriter, r *http.Request) {
+	log.Printf("[NodeServer] Received Write Request from RingServer")
+	body, _ := ioutil.ReadAll(r.Body)
+	var message lib.Message
+	json.Unmarshal(body, &message)
+	filename := "./" + message.CourseId
+	data := []byte(message.Count)
+	err := ioutil.WriteFile(filename, data, 0644)
+	if err != nil {
+		fmt.Println(err)
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(err.Error()))
+		return
+	}
+	fmt.Println("Successfully wrote to node!")
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("200 OK -- Successfully wrote to node!"))
 }
 
 func main() {

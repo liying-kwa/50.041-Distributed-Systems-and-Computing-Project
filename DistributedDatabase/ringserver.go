@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -82,12 +83,10 @@ func (ringServer *RingServer) AllocateKey(key string) lib.NodeData {
 	return nodeMap[lowest]
 }
 
-func (ringServer RingServer) ReadFromNode(courseId string) string {
-	message := lib.Message{lib.Get, courseId, -1}
+func (ringServer *RingServer) ReadFromNode(courseId string) string {
+	message := lib.Message{lib.Get, courseId, "-1"}
 	requestBody, _ := json.Marshal(message)
 	nodeData := ringServer.AllocateKey(courseId)
-	nodeDataJson, _ := json.Marshal(nodeData)
-	fmt.Println(string(nodeDataJson))
 	postURL := fmt.Sprintf("http://%s:%s/read", nodeData.Ip, nodeData.Port)
 	resp, err := http.Post(postURL, "application/json", bytes.NewReader(requestBody))
 	if err != nil {
@@ -104,6 +103,36 @@ func (ringServer RingServer) ReadFromNode(courseId string) string {
 		fmt.Println("Failed to read from node. Reason:", string(body))
 		return "-1"
 	}
+}
+
+func (ringServer *RingServer) WriteToNode(courseId string, count string) {
+	countInt, err := strconv.Atoi(count)
+	if err != nil {
+		fmt.Println("Invalid count, must be an integer.")
+		return
+	}
+	if countInt < 0 {
+		fmt.Println("Invalid count, must be 0 or more")
+		return
+	}
+	message := lib.Message{lib.Get, courseId, count}
+	requestBody, _ := json.Marshal(message)
+	nodeData := ringServer.AllocateKey(courseId)
+	postURL := fmt.Sprintf("http://%s:%s/write", nodeData.Ip, nodeData.Port)
+	resp, err := http.Post(postURL, "application/json", bytes.NewReader(requestBody))
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	defer resp.Body.Close()
+	body, _ := ioutil.ReadAll(resp.Body)
+	//Checks response from node
+	if resp.StatusCode == 200 {
+		fmt.Println("Successfully wrote to node. Response:", string(body))
+	} else {
+		fmt.Println("Failed to write to node. Reason:", string(body))
+	}
+
 }
 
 // Listening on port 5001 for communication with Nodes
@@ -147,7 +176,7 @@ func (ringServer *RingServer) AddNodeHandler(w http.ResponseWriter, r *http.Requ
 	fmt.Printf("Adding node %s:%s to the ring... \n", nodeData.Ip, nodeData.Port)
 	ringNodeDataMap[randomKey] = nodeData
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("200 OK -- Successlly added node to ring!"))
+	w.Write([]byte("200 OK -- Successfully added node to ring!"))
 
 	//---------------------- uncomment block below to just test the hashing function----------------//
 	// var CourseID string
@@ -234,11 +263,17 @@ func main() {
 				}
 			}
 
-		// testing
+		// testing read
 		case "read":
 			courseId := tokens[1]
 			count := theRingServer.ReadFromNode(courseId)
 			fmt.Println("Returned count:", count)
+
+		// testing write
+		case "write":
+			courseId := tokens[1]
+			count := tokens[2]
+			theRingServer.WriteToNode(courseId, count)
 
 		default:
 			fmt.Println("Unknown command. Use 'help' to see available commands.")

@@ -14,7 +14,7 @@ type NodeData struct {
 type Message struct {
 	Type     MessageType
 	CourseId string
-	Count    int
+	Count    string
 }
 
 type MessageType int
