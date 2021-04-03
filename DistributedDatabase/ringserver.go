@@ -134,8 +134,8 @@ func (ringServer *RingServer) WriteToNode(courseId string, count string) {
 
 // Listening on port 5001 for communication with Nodes
 func (ringServer RingServer) listenToNodes() {
-	http.HandleFunc("/add-node", ringServer.AddNodeHandler)
 	// http.HandleFunc("/test", ringServer.test)
+	http.HandleFunc("/add-node", ringServer.AddNodeHandler)
 	http.HandleFunc("/remove-node", ringServer.RemoveNodeHandler)
 	//http.HandleFunc("/revive-node", ringServer.ReviveNodeHandler)
 	//http.HandleFunc("/get-node", ringServer.GetNodeHandler)
