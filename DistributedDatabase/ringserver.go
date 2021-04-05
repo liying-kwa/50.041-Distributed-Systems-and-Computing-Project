@@ -17,7 +17,7 @@ import (
 	"strings"
 	"time"
 
-	"50.041-Distributed-Systems-and-Computing-Project/DistributedDatabase/lib"
+	"github.com/liying-kwa/50.041-Distributed-Systems-and-Computing-Project/DistributedDatabase/lib"
 )
 
 type RingServer struct {
@@ -27,6 +27,7 @@ type RingServer struct {
 	Ring         lib.Ring
 }
 
+// Initiate socket of ring on port 5001 (for communication with node server)
 func newRingServer() RingServer {
 	ip, _ := lib.ExternalIP()
 	return RingServer{

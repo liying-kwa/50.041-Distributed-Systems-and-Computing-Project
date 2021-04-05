@@ -12,7 +12,7 @@ import (
 	"strconv"
 	"strings"
 
-	"50.041-Distributed-Systems-and-Computing-Project/DistributedDatabase/lib"
+	"github.com/liying-kwa/50.041-Distributed-Systems-and-Computing-Project/DistributedDatabase/lib"
 )
 
 type Node struct {
@@ -43,7 +43,6 @@ func (n *Node) addNodeToRing() {
 	}
 	defer resp.Body.Close()
 	body, _ := ioutil.ReadAll(resp.Body)
-	//Checks response from ring server
 	if resp.StatusCode == 200 {
 		n.ConnectedToRing = true
 		go n.listenToRing(n.Port)
@@ -64,7 +63,6 @@ func (n *Node) removeNodeFromRing() {
 	}
 	defer resp.Body.Close()
 	body, _ := ioutil.ReadAll(resp.Body)
-	//Checks response from ring server
 	if resp.StatusCode == 200 {
 		n.ConnectedToRing = false
 		fmt.Println("Successfully de-registered. Response:", string(body))
@@ -121,6 +119,13 @@ func (n *Node) WriteHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("Successfully wrote to node!")
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("200 OK -- Successfully wrote to node!"))
+}
+
+func listen(w http.ResponseWriter, r *http.Request) {
+	// TODO: Read the message and take necessary action
+	fmt.Printf("[NodeServer] Receiving Message from Ring Server\n")
+	// HTTP response
+	fmt.Fprintf(w, "Value: 100")
 }
 
 func main() {

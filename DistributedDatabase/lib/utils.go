@@ -1,8 +1,14 @@
 package lib
 
 import (
+	"bytes"
+	"crypto/md5"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"io/ioutil"
 	"net"
+	"net/http"
 )
 
 type JsonRequest struct {
@@ -48,4 +54,31 @@ func ExternalIP() (string, error) {
 		}
 	}
 	return "", errors.New("are you connected to the network?")
+}
+
+// md5 hashing
+func HashMD5(text string, max int) int {
+	byteArray := md5.Sum([]byte(text))
+	var output int
+	for _, num := range byteArray {
+		output += int(num)
+	}
+	return output % max
+}
+
+func SendMessage(message string, nodeData NodeData) string {
+	fmt.Printf("Sending POST request to NodeServer %d at %s:%s\n", nodeData.Id, nodeData.Ip, nodeData.Port)
+	msg, _ := json.Marshal(map[string]string{
+		"message": message,
+	})
+	requestBody, _ := json.Marshal(msg)
+	// Send to ring server
+	postURL := fmt.Sprintf("http://%s:%s/listen", nodeData.Ip, nodeData.Port)
+	resp, _ := http.Post(postURL, "application/json", bytes.NewReader(requestBody))
+	defer resp.Body.Close()
+
+	// Waits for HTTP response
+	body, _ := ioutil.ReadAll(resp.Body)
+	fmt.Printf("Response from registering w NodeServer %d: %s\n", nodeData.Id, string(body))
+	return string(body)
 }
