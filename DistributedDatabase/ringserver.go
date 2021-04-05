@@ -84,7 +84,53 @@ func (ringServer *RingServer) AllocateKey(key string) lib.NodeData {
 	return nodeMap[lowest]
 }
 
-func (ringServer *RingServer) ReadFromNode(courseId string) string {
+// Listening on port 3001 for communication with Frontend
+func (ringServer RingServer) listenToFrontend() {
+	http.HandleFunc("/read-from-node", ringServer.ReadFromNodeHandler)
+	http.HandleFunc("/write-to-node", ringServer.WriteToNodeHandler)
+	log.Print(fmt.Sprintf("[RingServer] Started and Listening at %s:%s for Frontend.", ringServer.Ip, ringServer.FrontendPort))
+	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%s", ringServer.NodesPort), nil))
+}
+
+func (ringServer RingServer) ReadFromNodeHandler(w http.ResponseWriter, r *http.Request) {
+	log.Printf("[RingServer] Received Read Request from Frontend")
+	courseIdArray, ok := r.URL.Query()["courseid"]
+	if !ok || len(courseIdArray) < 1 {
+		problem := "Query parameter 'courseid' is missing"
+		fmt.Println(problem)
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(problem))
+		return
+	}
+	courseId := courseIdArray[0]
+
+	// Create HTTP GET request and send to Node
+	nodeData := ringServer.AllocateKey(courseId)
+	getURL := fmt.Sprintf("http://%s:%s/read?courseid=%s", nodeData.Ip, nodeData.Port, courseId)
+	resp, err := http.Get(getURL)
+	if err != nil {
+		fmt.Println(err)
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(err.Error()))
+		return
+	}
+	defer resp.Body.Close()
+	body, _ := ioutil.ReadAll(resp.Body)
+
+	// Echo response back to Frontend
+	if resp.StatusCode == 200 {
+		fmt.Println("Successfully read from node. Response:", string(body))
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(string(body)))
+	} else {
+		fmt.Println("Failed to read from node. Reason:", string(body))
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(string(body)))
+	}
+
+}
+
+/* func (ringServer *RingServer) ReadFromNode(courseId string) string {
 	nodeData := ringServer.AllocateKey(courseId)
 	getURL := fmt.Sprintf("http://%s:%s/read?courseid=%s", nodeData.Ip, nodeData.Port, courseId)
 	resp, err := http.Get(getURL)
@@ -101,9 +147,17 @@ func (ringServer *RingServer) ReadFromNode(courseId string) string {
 		fmt.Println("Failed to read from node. Reason:", string(body))
 		return "-1"
 	}
-}
+} */
 
-func (ringServer *RingServer) WriteToNode(courseId string, count string) {
+func (ringServer RingServer) WriteToNodeHandler(w http.ResponseWriter, r *http.Request) {
+	log.Printf("[RingServer] Received Write Request from Frontend")
+	body, _ := ioutil.ReadAll(r.Body)
+	var message lib.Message
+	json.Unmarshal(body, &message)
+	courseId := message.CourseId
+	count := message.Count
+
+	// Create HTTP POST request and send to Node
 	countInt, err := strconv.Atoi(count)
 	if err != nil {
 		fmt.Println("Invalid count, must be an integer.")
@@ -113,7 +167,43 @@ func (ringServer *RingServer) WriteToNode(courseId string, count string) {
 		fmt.Println("Invalid count, must be 0 or more")
 		return
 	}
-	message := lib.Message{lib.Get, courseId, count}
+	message2 := lib.Message{lib.Put, courseId, count}
+	requestBody, _ := json.Marshal(message2)
+	nodeData := ringServer.AllocateKey(courseId)
+	postURL := fmt.Sprintf("http://%s:%s/write", nodeData.Ip, nodeData.Port)
+	resp, err := http.Post(postURL, "application/json", bytes.NewReader(requestBody))
+	if err != nil {
+		fmt.Println(err)
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(err.Error()))
+		return
+	}
+	defer resp.Body.Close()
+	body2, _ := ioutil.ReadAll(resp.Body)
+
+	// Echo response back to Frontend
+	if resp.StatusCode == 200 {
+		fmt.Println("Successfully wrote to node. Response:", string(body2))
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(string(body2)))
+	} else {
+		fmt.Println("Failed to write to node. Reason:", string(body2))
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(string(body2)))
+	}
+}
+
+/* func (ringServer *RingServer) WriteToNode(courseId string, count string) {
+	countInt, err := strconv.Atoi(count)
+	if err != nil {
+		fmt.Println("Invalid count, must be an integer.")
+		return
+	}
+	if countInt < 0 {
+		fmt.Println("Invalid count, must be 0 or more")
+		return
+	}
+	message := lib.Message{lib.Put, courseId, count}
 	requestBody, _ := json.Marshal(message)
 	nodeData := ringServer.AllocateKey(courseId)
 	postURL := fmt.Sprintf("http://%s:%s/write", nodeData.Ip, nodeData.Port)
@@ -131,7 +221,7 @@ func (ringServer *RingServer) WriteToNode(courseId string, count string) {
 		fmt.Println("Failed to write to node. Reason:", string(body))
 	}
 
-}
+} */
 
 // Listening on port 5001 for communication with Nodes
 func (ringServer RingServer) listenToNodes() {
@@ -141,7 +231,7 @@ func (ringServer RingServer) listenToNodes() {
 	//http.HandleFunc("/revive-node", ringServer.ReviveNodeHandler)
 	//http.HandleFunc("/get-node", ringServer.GetNodeHandler)
 	//http.HandleFunc("/get-ring", ringServer.GetRingHandler)
-	log.Print(fmt.Sprintf("[RingServer] Started and Listening at %s:%s.", ringServer.Ip, ringServer.NodesPort))
+	log.Print(fmt.Sprintf("[RingServer] Started and Listening at %s:%s for Nodes.", ringServer.Ip, ringServer.NodesPort))
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%s", ringServer.NodesPort), nil))
 }
 
@@ -261,7 +351,7 @@ func main() {
 				}
 			}
 
-		// testing read
+		/* // testing read
 		case "read":
 			courseId := tokens[1]
 			count := theRingServer.ReadFromNode(courseId)
@@ -271,7 +361,7 @@ func main() {
 		case "write":
 			courseId := tokens[1]
 			count := tokens[2]
-			theRingServer.WriteToNode(courseId, count)
+			theRingServer.WriteToNode(courseId, count) */
 
 		default:
 			fmt.Println("Unknown command. Use 'help' to see available commands.")

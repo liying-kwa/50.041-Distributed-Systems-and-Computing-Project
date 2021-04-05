@@ -121,13 +121,6 @@ func (n *Node) WriteHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("200 OK -- Successfully wrote to node!"))
 }
 
-func listen(w http.ResponseWriter, r *http.Request) {
-	// TODO: Read the message and take necessary action
-	fmt.Printf("[NodeServer] Receiving Message from Ring Server\n")
-	// HTTP response
-	fmt.Fprintf(w, "Value: 100")
-}
-
 func main() {
 
 	thisNode := newNode(0, "-1")
