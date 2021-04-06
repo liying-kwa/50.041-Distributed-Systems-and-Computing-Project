@@ -99,7 +99,8 @@ func (n *Node) ReadHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	courseId := courseIdArray[0]
-	filename := "./" + string(courseId)
+	//filename := "./" + string(courseId)
+	filename := fmt.Sprintf("./node%d/%s", n.Id, string(courseId))
 	data, err := ioutil.ReadFile(filename)
 	if err != nil {
 		fmt.Println(err)
@@ -117,7 +118,8 @@ func (n *Node) WriteHandler(w http.ResponseWriter, r *http.Request) {
 	body, _ := ioutil.ReadAll(r.Body)
 	var message lib.Message
 	json.Unmarshal(body, &message)
-	filename := "./" + message.CourseId
+	//filename := "./" + message.CourseId
+	filename := fmt.Sprintf("./node%d/%s", n.Id, message.CourseId)
 	data := []byte(message.Count)
 	err := ioutil.WriteFile(filename, data, 0644)
 	if err != nil {

@@ -132,7 +132,7 @@ func (ringServer RingServer) ReadFromNodeHandler(w http.ResponseWriter, r *http.
 
 }
 
-/* func (ringServer *RingServer) ReadFromNode(courseId string) string {
+func (ringServer *RingServer) ReadFromNode(courseId string) string {
 	nodeData := ringServer.AllocateKey(courseId)
 	getURL := fmt.Sprintf("http://%s:%s/read?courseid=%s", nodeData.Ip, nodeData.Port, courseId)
 	resp, err := http.Get(getURL)
@@ -149,7 +149,7 @@ func (ringServer RingServer) ReadFromNodeHandler(w http.ResponseWriter, r *http.
 		fmt.Println("Failed to read from node. Reason:", string(body))
 		return "-1"
 	}
-} */
+}
 
 // TODO: Change to filename=key, data={courseID:count}
 func (ringServer RingServer) WriteToNodeHandler(w http.ResponseWriter, r *http.Request) {
@@ -196,7 +196,7 @@ func (ringServer RingServer) WriteToNodeHandler(w http.ResponseWriter, r *http.R
 	}
 }
 
-/* func (ringServer *RingServer) WriteToNode(courseId string, count string) {
+func (ringServer *RingServer) WriteToNode(courseId string, count string) {
 	countInt, err := strconv.Atoi(count)
 	if err != nil {
 		fmt.Println("Invalid count, must be an integer.")
@@ -224,7 +224,7 @@ func (ringServer RingServer) WriteToNodeHandler(w http.ResponseWriter, r *http.R
 		fmt.Println("Failed to write to node. Reason:", string(body))
 	}
 
-} */
+}
 
 // Listening on port 5001 for communication with Nodes
 func (ringServer RingServer) listenToNodes() {
@@ -321,6 +321,10 @@ func (ringServer *RingServer) RemoveNodeHandler(w http.ResponseWriter, r *http.R
 
 func main() {
 
+	// Set a different seed everytime so consistent hashing doesnt hash same keys
+	rand.Seed(time.Now().UTC().UnixNano())
+
+	// Initialise ringserver
 	theRingServer := newRingServer()
 	//go theRingServer.listenToFrontend()
 	//time.Sleep(time.Second * 3)
@@ -359,7 +363,7 @@ func main() {
 				}
 			}
 
-		/* // testing read
+		// testing read
 		case "read":
 			courseId := tokens[1]
 			count := theRingServer.ReadFromNode(courseId)
@@ -369,7 +373,7 @@ func main() {
 		case "write":
 			courseId := tokens[1]
 			count := tokens[2]
-			theRingServer.WriteToNode(courseId, count) */
+			theRingServer.WriteToNode(courseId, count)
 
 		default:
 			fmt.Println("Unknown command. Use 'help' to see available commands.")
