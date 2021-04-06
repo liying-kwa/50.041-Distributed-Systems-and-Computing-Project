@@ -11,8 +11,9 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
-	"50.041-Distributed-Systems-and-Computing-Project/DistributedDatabase/lib"
+	"github.com/liying-kwa/50.041-Distributed-Systems-and-Computing-Project/DistributedDatabase/lib"
 )
 
 type Node struct {
@@ -42,15 +43,23 @@ func (n *Node) addNodeToRing() {
 		return
 	}
 	defer resp.Body.Close()
-	body, _ := ioutil.ReadAll(resp.Body)
-	//Checks response from ring server
+	responseBody, _ := ioutil.ReadAll(resp.Body)
 	if resp.StatusCode == 200 {
+		var nodeData2 lib.NodeData
+		json.Unmarshal(responseBody, &nodeData2)
+		n.Id = nodeData2.Id
 		n.ConnectedToRing = true
 		go n.listenToRing(n.Port)
-		fmt.Println("Successfully registered. Response:", string(body))
+		// Create folder (unique to node) for storing data (if folder doesnt already exist)
+		folderName := "node" + strconv.Itoa(n.Id)
+		if _, err := os.Stat(folderName); os.IsNotExist(err) {
+			os.Mkdir(folderName, 0755)
+		}
+		fmt.Println("Successfully registered. Response:", string(responseBody))
 	} else {
-		fmt.Println("Failed to register. Response:", string(body))
+		fmt.Println("Failed to register. Response:", string(responseBody))
 	}
+	time.Sleep(time.Second)
 }
 
 func (n *Node) removeNodeFromRing() {
@@ -64,7 +73,6 @@ func (n *Node) removeNodeFromRing() {
 	}
 	defer resp.Body.Close()
 	body, _ := ioutil.ReadAll(resp.Body)
-	//Checks response from ring server
 	if resp.StatusCode == 200 {
 		n.ConnectedToRing = false
 		fmt.Println("Successfully de-registered. Response:", string(body))
@@ -91,7 +99,8 @@ func (n *Node) ReadHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	courseId := courseIdArray[0]
-	filename := "./" + string(courseId)
+	//filename := "./" + string(courseId)
+	filename := fmt.Sprintf("./node%d/%s", n.Id, string(courseId))
 	data, err := ioutil.ReadFile(filename)
 	if err != nil {
 		fmt.Println(err)
@@ -109,7 +118,8 @@ func (n *Node) WriteHandler(w http.ResponseWriter, r *http.Request) {
 	body, _ := ioutil.ReadAll(r.Body)
 	var message lib.Message
 	json.Unmarshal(body, &message)
-	filename := "./" + message.CourseId
+	//filename := "./" + message.CourseId
+	filename := fmt.Sprintf("./node%d/%s", n.Id, message.CourseId)
 	data := []byte(message.Count)
 	err := ioutil.WriteFile(filename, data, 0644)
 	if err != nil {
