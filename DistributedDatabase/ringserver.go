@@ -35,6 +35,7 @@ func newRingServer() RingServer {
 		lib.RINGSERVER_NODES_PORT,
 		lib.RINGSERVER_FRONTEND_PORT,
 		lib.Ring{
+			-1,
 			make(map[int]lib.NodeData),
 		},
 	}
@@ -92,6 +93,7 @@ func (ringServer RingServer) listenToFrontend() {
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%s", ringServer.NodesPort), nil))
 }
 
+// TODO: Change to filename=key, data={courseID:count}
 func (ringServer RingServer) ReadFromNodeHandler(w http.ResponseWriter, r *http.Request) {
 	log.Printf("[RingServer] Received Read Request from Frontend")
 	courseIdArray, ok := r.URL.Query()["courseid"]
@@ -149,6 +151,7 @@ func (ringServer RingServer) ReadFromNodeHandler(w http.ResponseWriter, r *http.
 	}
 } */
 
+// TODO: Change to filename=key, data={courseID:count}
 func (ringServer RingServer) WriteToNodeHandler(w http.ResponseWriter, r *http.Request) {
 	log.Printf("[RingServer] Received Write Request from Frontend")
 	body, _ := ioutil.ReadAll(r.Body)
@@ -260,11 +263,14 @@ func (ringServer *RingServer) AddNodeHandler(w http.ResponseWriter, r *http.Requ
 		_, taken = ringNodeDataMap[randomKey]
 	}
 
-	// Add node to ring
+	// Assign ID to node and add node to ring
 	fmt.Printf("Adding node %s:%s to the ring... \n", nodeData.Ip, nodeData.Port)
+	nodeData.Id = ringServer.Ring.MaxID + 1
+	ringServer.Ring.MaxID += 1
 	ringNodeDataMap[randomKey] = nodeData
+	responseBody, _ := json.Marshal(nodeData)
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("200 OK -- Successfully added node to ring!"))
+	w.Write(responseBody)
 
 	//---------------------- uncomment block below to just test the hashing function----------------//
 	// var CourseID string
@@ -316,6 +322,8 @@ func (ringServer *RingServer) RemoveNodeHandler(w http.ResponseWriter, r *http.R
 func main() {
 
 	theRingServer := newRingServer()
+	//go theRingServer.listenToFrontend()
+	//time.Sleep(time.Second * 3)
 	go theRingServer.listenToNodes()
 	time.Sleep(time.Second * 3)
 

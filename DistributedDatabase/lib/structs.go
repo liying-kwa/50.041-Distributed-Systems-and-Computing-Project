@@ -1,7 +1,7 @@
 package lib
 
 type Ring struct {
-	// MaxID           int // 0 to maxID inclusive
+	MaxID           int // maxID in ring. if -1, means no node in ring
 	RingNodeDataMap map[int]NodeData
 }
 

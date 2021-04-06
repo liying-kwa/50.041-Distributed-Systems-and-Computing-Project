@@ -11,6 +11,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/liying-kwa/50.041-Distributed-Systems-and-Computing-Project/DistributedDatabase/lib"
 )
@@ -42,14 +43,23 @@ func (n *Node) addNodeToRing() {
 		return
 	}
 	defer resp.Body.Close()
-	body, _ := ioutil.ReadAll(resp.Body)
+	responseBody, _ := ioutil.ReadAll(resp.Body)
 	if resp.StatusCode == 200 {
+		var nodeData2 lib.NodeData
+		json.Unmarshal(responseBody, &nodeData2)
+		n.Id = nodeData2.Id
 		n.ConnectedToRing = true
 		go n.listenToRing(n.Port)
-		fmt.Println("Successfully registered. Response:", string(body))
+		// Create folder (unique to node) for storing data (if folder doesnt already exist)
+		folderName := "node" + strconv.Itoa(n.Id)
+		if _, err := os.Stat(folderName); os.IsNotExist(err) {
+			os.Mkdir(folderName, 0755)
+		}
+		fmt.Println("Successfully registered. Response:", string(responseBody))
 	} else {
-		fmt.Println("Failed to register. Response:", string(body))
+		fmt.Println("Failed to register. Response:", string(responseBody))
 	}
+	time.Sleep(time.Second)
 }
 
 func (n *Node) removeNodeFromRing() {
