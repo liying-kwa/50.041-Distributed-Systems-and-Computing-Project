@@ -8,6 +8,7 @@ const ConfirmedCourse = props => (
       <td>{props.course.instructor}</td>
       <td>{props.course.units}</td>
       <td>{props.course.status}</td>
+      <td>{props.course.seats}</td>
     </tr>
 )
 

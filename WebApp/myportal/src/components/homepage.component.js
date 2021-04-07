@@ -2,39 +2,33 @@ import React, { Component } from 'react';
 import Course from './course.component'
 import ConfirmedCourse from './confirmCourse.component'
 import EnrolledCourse from './enrolledCourse.components'
-import SuccessCourse from './successCourse.component'
+// import SuccessCourse from './successCourse.component'
 import "../App.css"
+const axios = require('axios');
 
 export default class HomePage extends Component {
     constructor(props) {
         super(props); 
 
-        this.onChangeSubject = this.onChangeSubject.bind(this);
-        this.onChangeCouseNumber = this.onChangeCouseNumber.bind(this);
-        this.onChangeCourseCareer = this.onChangeCourseCareer.bind(this);
+        this.onChangeCourseId = this.onChangeCourseId.bind(this);
         this.onSubmit = this.onSubmit.bind(this);
         this.selectCourse = this.selectCourse.bind(this);
-        this.deleteCourse = this.deleteCourse.bind(this);
-        this.goToStep2 = this.goToStep2.bind(this);
         this.cancelConfirm = this.cancelConfirm.bind(this)
-        this.previousConfirm = this.previousConfirm.bind(this);
         this.confirmConfirm = this.confirmConfirm.bind(this);
-        this.addAnotherClass = this.addAnotherClass.bind(this);
 
         this.state = {
-            subjects : ['01', '02', '03', '10', '20', '30', '40', '50', '51', '99'], 
-            courseNums: ['contains', 'greater than or equal to', 'is exactly', 'lesser than or equal to'],
-            courseCareers: ['Continuing Education Training', 'Master', 'Master of Architecture', 'Non-Graduating', 'PhD', "SUTD MIT Master", 'Undergradutate'],
+            alertType: "",
+            alert: false,
             subject: '', 
-            number: '', 
+            courseId: '', 
             career: '', 
+            addedToCartCourses: [],
             enrolledCourses: [],
             enrolledCoursesString: '',
             successCourses: [],
             searchStage: true,
             selectStage: false, 
             confirmStage: false, 
-            successStage: false,
             notification: "",
             courses: [
                 {
@@ -46,21 +40,21 @@ export default class HomePage extends Component {
                     instructor: "Staff", 
                     meetDate: "20/05/2019 - 16/08/2019",
                     status: 'Available', 
-                    units: '24.00'
+                    units: '24.00',
+                    seats:  0
                 },
-                {   
-                    _id: '2',
-                    class: "1194",
-                    section: "CH02-CLB Regular",
-                    dayTime: "Th 15:00 - 17:00", 
-                    room: "Think Tank 13 (1.508)", 
-                    instructor: "Staff", 
-                    meetDate: "20/05/2019 - 16/08/2019",
-                    status: 'Available', 
-                    units: '24.00'
-                }
+                // {   
+                //     _id: '2',
+                //     class: "1194",
+                //     section: "CH02-CLB Regular",
+                //     dayTime: "Th 15:00 - 17:00", 
+                //     room: "Think Tank 13 (1.508)", 
+                //     instructor: "Staff", 
+                //     meetDate: "20/05/2019 - 16/08/2019",
+                //     status: 'Available', 
+                //     units: '24.00' 
+                // }
             ],
-            // search: false,
         }
         
     }
@@ -71,9 +65,9 @@ export default class HomePage extends Component {
         }) 
      }
  
-     onChangeCouseNumber(e) {
+     onChangeCourseId(e) {
          this.setState({
-            number: e.target.value
+            courseId: e.target.value
          }) 
       }
  
@@ -83,89 +77,61 @@ export default class HomePage extends Component {
          }) 
      }
 
-     goToStep2() {
-         this.setState({
-            searchStage: false,
-            selectStage: false, 
-            confirmStage: true, 
-            successStage: false,
-            notification: ""
-         })
-     }
-
      cancelConfirm() {
+         let tempEnrolledCourses = [...this.state.enrolledCourses]
+         if (tempEnrolledCourses.length == 0) {
+            tempEnrolledCourses = []
+         }
          this.setState({
             searchStage: true,
             selectStage: false, 
             confirmStage: false,
             successStage: false,
-            enrolledCourses: [],
+            enrolledCourses: tempEnrolledCourses,
             notification: "" 
          })
      }
 
-     previousConfirm() {
+    confirmConfirm() {
+        let success = true 
+        let tempEnrolledCourses
+        if (success) {
+            tempEnrolledCourses = [...this.state.enrolledCourses]
+            tempEnrolledCourses.push(this.state.courses[0])
+        }
         this.setState({
            searchStage: true,
            selectStage: false, 
            confirmStage: false,
-           successStage: false,
-           notification: ""
+           alert: true,
+           alertType: "confirm",
+           addedToCartCourses: [],
+           enrolledCourses: tempEnrolledCourses,
+           notification: `You are successfully enrolled into Course ${this.state.courses[0].class}`
         })
-    }
-
-    confirmConfirm() {
-        this.setState({
-           searchStage: false,
-           selectStage: false, 
-           confirmStage: false,
-           successStage: true,
-           successCourses: [...this.state.enrolledCourses],
-           notification: ""
-        })
-        let result = this.state.enrolledCourses.map(x => x.class)
-        let array = result + "," + this.state.enrolledCoursesString
-        console.log(array)
-        const requestOptions = {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({"value": array })
-        };
-        fetch('http://localhost:3000/api/v1/student/1003123', requestOptions)
-            .then(response => response.json())
-            .then(data => console.log(data));
-    }
-
-    addAnotherClass() {
-        this.setState({
-            searchStage: true,
-            selectStage: false, 
-            confirmStage: false,
-            successStage: false,
-            enrolledCourses: [],
-            successCourses: [...this.state.enrolledCourses],
-            notification: ""
-         })
+        this.timer = setInterval(() => {this.setState({alert: false})}, 3000)
     }
 
     selectCourse(course) {
-        const enrolledCourses = [...this.state.enrolledCourses];
-        enrolledCourses.push(course)
+        const tempAddedToCart = [...this.state.addedToCartCourses];
+        tempAddedToCart.push(course)
         this.setState({
-            enrolledCourses: enrolledCourses,
+            addedToCartCourses: tempAddedToCart,
             selectStage: false, 
-            searchStage: true,
-            confirmStage: false, 
-            notification: `${course.class} is added to cart` 
+            alert: true, 
+            alertType: "addToCart",
+            confirmStage: true , 
+            notification: `Course ${course.class} is added to cart` 
         })
+        this.timer = setInterval(() => {this.setState({alert: false})}, 3000)
     }
 
-    deleteCourse(course) {
-        this.setState({
-            enrolledCourses: this.state.enrolledCourses.filter(c => c._id !== course._id),
-            notification: `${course.class} is removed from cart` 
-        })
-    }
+    // deleteCourse(course) {
+    //     this.setState({
+    //         enrolledCourses: this.state.enrolledCourses.filter(c => c._id !== course._id),
+    //         notification: `${course.class} is removed from cart` 
+    //     })
+    // }
 
     selectCoursesList() {
         return this.state.courses.map(course => {
@@ -175,83 +141,73 @@ export default class HomePage extends Component {
 
     enrolledCoursesList() {
         return this.state.enrolledCourses.map(course => {
-            return <EnrolledCourse course={course}  deleteCourse={this.deleteCourse} key={course._id}/>;
+            return <EnrolledCourse course={course} key={course._id}/>;
         })
     }
 
     confirmedCourseList() {
-        return this.state.enrolledCourses.map(course => {
+        return this.state.addedToCartCourses.map(course => {
             return <ConfirmedCourse course={course}  key={course._id}/>;
         })
     }
 
-    SuccessCourseList() {
-        return this.state.enrolledCourses.map(course => {
-            return <SuccessCourse course={course} key={course._id}/>;
-        })
-    }
 
-    /* getCount(){
-        fetch('http://localhost:3000/api/v1/student/1003123', {
-            crossDomain:true,
-            method: 'GET',
-            headers: {'Content-Type':'application/json'},
-            }).then(response => response.json()).then(data => this.setState({
-                enrolledCoursesString: data.value
-             }));
-    } */
-
-    getCount(courseId){
-        fetch('http://localhost:3001/read-from-node?courseid=' + courseId, {
-            crossDomain:true,
-            method: 'GET',
-            headers: {'Content-Type':'text/plain'},
-            })
-            .then(function(response) {
-                if (response.ok) {
-                    // get count
-                    this.setState({
-                        count: response.text()
-                    })
-                }
-                else {
-                    // print error
-                    console.log(response.text())
-                }
-            });
-    }
-
-     onSubmit(e) { 
+    onSubmit(e) { 
         e.preventDefault()
-        this.setState({
-            selectStage: true, 
-            searchStage: false,
-            confirmStage: false, 
+        let course = [...this.state.courses]
+        axios.get('http://localhost:3001/read-from-node?courseid=' + this.state.courseId)
+        .then(response => {
+            console.log(response)
+            course[0].seats = response.data
+            this.setState({
+                selectStage: true, 
+                searchStage: false,
+                confirmStage: false, 
+                courses: course,
+                courseId: "",
+                alert: false,
+            })
         })
+        .catch(error => {
+            this.setState({
+                alert: true,
+                alertType: "invalidID",
+                notification: "Invalid Course ID"
+            });
+        })
+        this.timer = setInterval(() => {this.setState({alert: false})}, 3000)
     }
 
     render() {
-        let step2Button
+        let alertMessage
         let enrolmentsummary
-        this.getCount()
+        let alertSignal = ""
+        if (this.state.alert) {
+            if (this.state.alertType == "invalidID"){
+              alertSignal = "alert alert-danger"
+            } else if (this.state.alertType == "addToCart") {
+                alertSignal = "alert alert-primary"
+            } else {
+                alertSignal = "alert alert-success"
+            }
+            alertMessage = <div class={alertSignal} role="alert">
+                            {this.state.notification}
+            </div> 
+        } 
+        
         if (this.state.enrolledCourses.length != 0)  {
-            step2Button =  <button type="button" className="btn btn-primary" onClick={this.goToStep2}>
-                        Proceed to step 2 of 3
-                    </button>
             enrolmentsummary = <div>
             <h3>Enrollment Summary</h3>
             <div></div>
             <table className="table">
             <thead className="thead-light">
                 <tr>
-                <th>Delete</th>
                 <th>Class</th>
                 <th>Days/Times</th>
                 <th>Room</th>
                 <th>Instructor</th>
                 <th>Units</th>
                 <th>Status</th>
-                <th></th>
                 </tr>
             </thead>
             <tbody>
@@ -261,18 +217,23 @@ export default class HomePage extends Component {
             </div>
         } else {
             enrolmentsummary = <div className="summary">
-                    <h2>No courses have been added to cart</h2>
+                    <h2>No Enrolled Courses</h2>
                 </div>
         }
 
         const notification = this.state.notification
         if (this.state.searchStage) {
+            let enrolledClass = <b></b>; 
+            if (this.state.enrolledCoursesString != "") {
+                enrolledClass = <b>Enrolled class:</b>
+            }
             return (
                 <div>
-                    <p> {notification} </p>
+                    {alertMessage}
+                    {/* {successMessage} */}
                     <div className = 'row'>
                         <div className ='col'>
-                            <b>Enrolled class:</b> {this.state.enrolledCoursesString}
+                           {enrolledClass} {this.state.enrolledCoursesString}
                         </div>
                     </div>
                     <div className = 'row'>
@@ -280,55 +241,8 @@ export default class HomePage extends Component {
                     <h2>Class Search</h2> 
                     <form onSubmit={this.onSubmit}>
                         <div className = "form-group"> 
-                            <label>Subject</label>
-                            <select ref="userInput"
-                                required
-                                className="form-control"
-                                value={this.state.subject}
-                                onChange={this.onChangeSubject}>
-                                {
-                                    this.state.subjects.map(function(subject) {
-                                        return <option
-                                        key={subject}
-                                        value={subject}>{subject}
-                                        </option>;
-                                    })
-                                }
-                            </select>
-                        </div>
-                        <div className = "form-group"> 
-                            <label>Course Number</label>
-                            <select ref="userInput"
-                                required
-                                className="form-control"
-                                value={this.state.subject}
-                                onChange={this.onChangeSubject}>
-                                {
-                                    this.state.courseNums.map(function(number) {
-                                        return <option
-                                        key={number}
-                                        value={number}>{number}
-                                        </option>;
-                                    })
-                                }
-                            </select>
-                        </div>
-                        <div className = "form-group"> 
-                            <label>Course Career</label>
-                            <select ref="userInput"
-                                required
-                                className="form-control"
-                                value={this.state.subject}
-                                onChange={this.onChangeSubject}>
-                                {
-                                    this.state.courseCareers.map(function(career) {
-                                        return <option
-                                        key={career}
-                                        value={career}>{career}
-                                        </option>;
-                                    })
-                                }
-                            </select>
+                            <input type="text" class="form-control" placeholder="Enter Course ID"  value={this.state.courseId}
+                        onChange={this.onChangeCourseId}/>        
                         </div>
                             <div className="form-group">
                                 <input type="submit" value="Search" className="btn btn-primary"/>
@@ -339,18 +253,14 @@ export default class HomePage extends Component {
                         {enrolmentsummary}
                     </div>
                     </div> 
-                        <div className="d-flex flex-row-reverse">
-                            <div className="p-2">
-                                {step2Button}
-                            </div>
-                        </div>
                 </div>
             )
         }
         else if (this.state.selectStage) {
             return (
                 <div>
-                     <h3>Enrollment Summary</h3>
+                    {alertMessage}
+                     <h3>Available Courses</h3>
                      <div></div>
                      <table className="table">
                      <thead className="thead-light">
@@ -362,19 +272,27 @@ export default class HomePage extends Component {
                          <th>Instructor</th>
                          <th>Meeting Dates</th>
                          <th>Status</th>
+                         <th>Seats</th>
                          <th></th>
                          </tr>
                      </thead>
                      <tbody>
                          {this.selectCoursesList()}
+                        
                      </tbody>
                      </table>
+                     <div className="div-right">
+                        <button type="button" className="btn btn-danger cancel-right"  onClick={this.cancelConfirm}>
+                                    Back to Menu
+                        </button>
+                     </div>
                 </div>
              )
         } 
         else if (this.state.confirmStage) {
             return (
                 <div>
+                    {alertMessage}
                      <h3>Confirm Classes</h3>
                      <div></div>
                      <table className="table">
@@ -386,7 +304,7 @@ export default class HomePage extends Component {
                             <th>Instructor</th>
                             <th>Units</th>
                             <th>Status</th>
-                            <th></th>
+                            <th>Seats</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -395,42 +313,12 @@ export default class HomePage extends Component {
                         </table>
                         <div className="d-flex flex-row-reverse">
                             <div className="p-2">
-                            <button type="button" className="btn btn-primary confirm-flex" onClick={this.cancelConfirm}>
-                                Cancel
-                            </button>
-                            <button type="button" className="btn btn-primary confirm-flex" onClick={this.previousConfirm}>
-                                    Previous 
+                            <button type="button" className="btn btn-danger confirm-flex" onClick={this.cancelConfirm}>
+                               Back to Menu
                             </button>
                             <button type="button" className="btn btn-primary confirm-flex" onClick={this.confirmConfirm}>
                                     Finished Enrolling
                             </button>
-                            </div>
-                        </div>
-                </div>
-             )
-        }
-        else if (this.state.successStage) {
-            return (
-                <div>
-                     <h3>View Results</h3>
-                     <div></div>
-                     <table className="table">
-                     <thead className="thead-light">
-                         <tr>
-                         <th>Class</th>
-                         <th>Message</th>
-                         <th>Success</th>
-                         </tr>
-                     </thead>
-                     <tbody>
-                         {this.SuccessCourseList()}
-                     </tbody>
-                     </table>
-                     <div className="d-flex flex-row-reverse">
-                            <div className="p-2">
-                                <button type="button" className="btn btn-primary confirm-flex" onClick={this.addAnotherClass}>
-                                        Add Another Class 
-                                </button>
                             </div>
                         </div>
                 </div>
