@@ -15,7 +15,6 @@ type Message struct {
 	Type     MessageType
 	CourseId string
 	Count    string
-	Hash     string
 }
 
 type MessageType int
