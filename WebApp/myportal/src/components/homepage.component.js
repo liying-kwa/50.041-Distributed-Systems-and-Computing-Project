@@ -101,7 +101,7 @@ export default class HomePage extends Component {
            confirmStage: false,
            alert: true,
            alertType: "confirm",
-           addedToCartCourses: {},
+           addedToCartCourses: [],
            enrolledCourses: tempEnrolledCourses,
            notification: `You are successfully enrolled into Course ${this.state.courses[0].class}`
         })
