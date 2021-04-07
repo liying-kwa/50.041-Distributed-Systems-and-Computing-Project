@@ -78,12 +78,16 @@ export default class HomePage extends Component {
      }
 
      cancelConfirm() {
+         let tempEnrolledCourses = [...this.state.enrolledCourses]
+         if (this.state.enrolledCourses.length == 0) {
+            tempEnrolledCourses = []
+         }
          this.setState({
             searchStage: true,
             selectStage: false, 
             confirmStage: false,
             successStage: false,
-            enrolledCourses: [],
+            enrolledCourses: tempEnrolledCourses,
             notification: "" 
          })
      }
