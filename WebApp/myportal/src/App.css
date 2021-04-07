@@ -50,3 +50,11 @@
 p{
   color: red;
 }
+
+.div-right{
+  text-align:right
+}
+
+.cancel-right{
+  display:inline-block
+}
