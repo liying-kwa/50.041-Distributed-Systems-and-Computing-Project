@@ -53,9 +53,12 @@ func HashMD5(text string, max int) int {
 
 //   function to allocate the given CourseId to a node and return that node's ip:port
 //func (ringServer *RingServer) AllocateKey(key string) string {
-func (ringServer *RingServer) AllocateKey(key string) lib.NodeData {
+func (ringServer *RingServer) AllocateKey(key string) (lib.NodeData, string) {
 	nodeMap := ringServer.Ring.RingNodeDataMap
 	keyHash := HashMD5(key, lib.MAX_KEYS)
+	fmt.Printf("this is the hash below: \n")
+	fmt.Println(keyHash)
+
 	var lowest int
 	lowest = math.MaxInt32
 
@@ -76,13 +79,13 @@ func (ringServer *RingServer) AllocateKey(key string) lib.NodeData {
 		if keyHash <= key {
 			//nodeURL := fmt.Sprintf("%s:%s", nodeMap[key].Ip, nodeMap[key].Port)
 			//return nodeURL
-			return nodeMap[key]
+			return nodeMap[key], strconv.Itoa(keyHash)
 		}
 	}
 
 	//nodeURL := fmt.Sprintf("%s:%s", nodeMap[lowest].Ip, nodeMap[lowest].Port)
 	//return nodeURL
-	return nodeMap[lowest]
+	return nodeMap[lowest], strconv.Itoa(keyHash)
 }
 
 // Listening on port 3001 for communication with Frontend
@@ -108,8 +111,8 @@ func (ringServer RingServer) ReadFromNodeHandler(w http.ResponseWriter, r *http.
 	courseId := courseIdArray[0]
 
 	// Create HTTP GET request and send to Node
-	nodeData := ringServer.AllocateKey(courseId)
-	getURL := fmt.Sprintf("http://%s:%s/read?courseid=%s", nodeData.Ip, nodeData.Port, courseId)
+	nodeData, keyHash := ringServer.AllocateKey(courseId)
+	getURL := fmt.Sprintf("http://%s:%s/read?courseid=%s&keyhash=%s", nodeData.Ip, nodeData.Port, courseId, keyHash)
 	resp, err := http.Get(getURL)
 	if err != nil {
 		fmt.Println(err)
@@ -137,8 +140,9 @@ func (ringServer RingServer) ReadFromNodeHandler(w http.ResponseWriter, r *http.
 }
 
 func (ringServer *RingServer) ReadFromNode(courseId string) string {
-	nodeData := ringServer.AllocateKey(courseId)
-	getURL := fmt.Sprintf("http://%s:%s/read?courseid=%s", nodeData.Ip, nodeData.Port, courseId)
+	fmt.Println(ringServer.Ring.RingNodeDataMap)
+	nodeData, keyHash := ringServer.AllocateKey(courseId)
+	getURL := fmt.Sprintf("http://%s:%s/read?courseid=%s&keyhash=%s", nodeData.Ip, nodeData.Port, courseId, keyHash)
 	resp, err := http.Get(getURL)
 	if err != nil {
 		fmt.Println(err)
@@ -174,9 +178,9 @@ func (ringServer RingServer) WriteToNodeHandler(w http.ResponseWriter, r *http.R
 		fmt.Println("Invalid count, must be 0 or more")
 		return
 	}
-	message2 := lib.Message{lib.Put, courseId, count}
+	nodeData, keyHash := ringServer.AllocateKey(courseId)
+	message2 := lib.Message{lib.Put, courseId, count, keyHash}
 	requestBody, _ := json.Marshal(message2)
-	nodeData := ringServer.AllocateKey(courseId)
 	postURL := fmt.Sprintf("http://%s:%s/write", nodeData.Ip, nodeData.Port)
 	resp, err := http.Post(postURL, "application/json", bytes.NewReader(requestBody))
 	if err != nil {
@@ -203,6 +207,7 @@ func (ringServer RingServer) WriteToNodeHandler(w http.ResponseWriter, r *http.R
 }
 
 func (ringServer *RingServer) WriteToNode(courseId string, count string) {
+	fmt.Println(ringServer.Ring.RingNodeDataMap)
 	countInt, err := strconv.Atoi(count)
 	if err != nil {
 		fmt.Println("Invalid count, must be an integer.")
@@ -212,9 +217,9 @@ func (ringServer *RingServer) WriteToNode(courseId string, count string) {
 		fmt.Println("Invalid count, must be 0 or more")
 		return
 	}
-	message := lib.Message{lib.Put, courseId, count}
+	nodeData, keyHash := ringServer.AllocateKey(courseId)
+	message := lib.Message{lib.Put, courseId, count, keyHash}
 	requestBody, _ := json.Marshal(message)
-	nodeData := ringServer.AllocateKey(courseId)
 	postURL := fmt.Sprintf("http://%s:%s/write", nodeData.Ip, nodeData.Port)
 	resp, err := http.Post(postURL, "application/json", bytes.NewReader(requestBody))
 	if err != nil {
@@ -274,6 +279,7 @@ func (ringServer *RingServer) AddNodeHandler(w http.ResponseWriter, r *http.Requ
 	nodeData.Id = ringServer.Ring.MaxID + 1
 	ringServer.Ring.MaxID += 1
 	ringNodeDataMap[randomKey] = nodeData
+
 	responseBody, _ := json.Marshal(nodeData)
 	w.WriteHeader(http.StatusOK)
 	w.Write(responseBody)
