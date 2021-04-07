@@ -124,10 +124,12 @@ func (ringServer RingServer) ReadFromNodeHandler(w http.ResponseWriter, r *http.
 	// Echo response back to Frontend
 	if resp.StatusCode == 200 {
 		fmt.Println("Successfully read from node. Response:", string(body))
+		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(string(body)))
 	} else {
 		fmt.Println("Failed to read from node. Reason:", string(body))
+		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write([]byte(string(body)))
 	}
