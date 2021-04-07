@@ -90,7 +90,7 @@ func (ringServer RingServer) listenToFrontend() {
 	http.HandleFunc("/read-from-node", ringServer.ReadFromNodeHandler)
 	http.HandleFunc("/write-to-node", ringServer.WriteToNodeHandler)
 	log.Print(fmt.Sprintf("[RingServer] Started and Listening at %s:%s for Frontend.", ringServer.Ip, ringServer.FrontendPort))
-	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%s", ringServer.NodesPort), nil))
+	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%s", ringServer.FrontendPort), nil))
 }
 
 // TODO: Change to filename=key, data={courseID:count}
@@ -100,6 +100,7 @@ func (ringServer RingServer) ReadFromNodeHandler(w http.ResponseWriter, r *http.
 	if !ok || len(courseIdArray) < 1 {
 		problem := "Query parameter 'courseid' is missing"
 		fmt.Println(problem)
+		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write([]byte(problem))
 		return
@@ -112,6 +113,7 @@ func (ringServer RingServer) ReadFromNodeHandler(w http.ResponseWriter, r *http.
 	resp, err := http.Get(getURL)
 	if err != nil {
 		fmt.Println(err)
+		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write([]byte(err.Error()))
 		return
@@ -187,10 +189,12 @@ func (ringServer RingServer) WriteToNodeHandler(w http.ResponseWriter, r *http.R
 	// Echo response back to Frontend
 	if resp.StatusCode == 200 {
 		fmt.Println("Successfully wrote to node. Response:", string(body2))
+		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(string(body2)))
 	} else {
 		fmt.Println("Failed to write to node. Reason:", string(body2))
+		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write([]byte(string(body2)))
 	}
@@ -326,7 +330,7 @@ func main() {
 
 	// Initialise ringserver
 	theRingServer := newRingServer()
-	//go theRingServer.listenToFrontend()
+	go theRingServer.listenToFrontend()
 	//time.Sleep(time.Second * 3)
 	go theRingServer.listenToNodes()
 	time.Sleep(time.Second * 3)

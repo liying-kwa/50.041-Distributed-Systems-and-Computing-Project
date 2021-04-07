@@ -4,6 +4,7 @@ import ConfirmedCourse from './confirmCourse.component'
 import EnrolledCourse from './enrolledCourse.components'
 import SuccessCourse from './successCourse.component'
 import "../App.css"
+const axios = require('axios');
 
 export default class HomePage extends Component {
     constructor(props) {
@@ -197,38 +198,49 @@ export default class HomePage extends Component {
     // } 
 
     getCount(courseId){
+        // axios.get('http://localhost:3001/read-from-node?courseid=' + courseId, { crossdomain: true })
+        // .then(function (response) {
+        //     // handle success
+        //     console.log(response);
+        // })
+        // .catch(function (error) {
+        //     // handle error
+        //     console.log(error);
+        // })
         fetch('http://localhost:3001/read-from-node?courseid=' + courseId, {
-            crossDomain:true,
             method: 'GET',
-            headers: {'Content-Type':'text/plain'},
+            headers: {'Content-Type':'text/plain', },
             })
             .then(function(response) {
                 if (response.ok) {
                     // get count
-                    this.setState({
-                        count: response.text()
-                    })
+                    return response.text()
+                    // this.setState({
+                    //     count: response.text()
+                    // })
                 }
                 else {
                     // print error
-                    console.log(response.text())
+                    return response.status(400)
                 }
             });
     }
 
      onSubmit(e) { 
         e.preventDefault()
-        this.setState({
-            selectStage: true, 
-            searchStage: false,
-            confirmStage: false, 
-        })
+        // console.log(this.state.number)
+        console.log(this.getCount(this.state.number))
+        // this.setState({
+        //     selectStage: true, 
+        //     searchStage: false,
+        //     confirmStage: false, 
+        // })
     }
 
     render() {
         let step2Button
         let enrolmentsummary
-        this.getCount()
+        // this.getCount()
         if (this.state.enrolledCourses.length != 0)  {
             step2Button =  <button type="button" className="btn btn-primary" onClick={this.goToStep2}>
                         Proceed to step 2 of 3
@@ -279,7 +291,7 @@ export default class HomePage extends Component {
                     <h2>Class Search</h2> 
                     <form onSubmit={this.onSubmit}>
                         <div className = "form-group"> 
-                            <input type="text" class="form-control" placeholder="Enter Course Number"  value={this.state.courseNumber}
+                            <input type="text" class="form-control" placeholder="Enter Course Number"  value={this.state.number}
                         onChange={this.onChangeCouseNumber}/>        
                         </div>
                             <div className="form-group">
