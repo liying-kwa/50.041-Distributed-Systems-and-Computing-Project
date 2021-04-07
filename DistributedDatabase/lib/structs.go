@@ -18,6 +18,12 @@ type Message struct {
 	Hash     string
 }
 
+type TransferMessage struct {
+	Ip   string
+	Port string
+	Hash string
+}
+
 type MessageType int
 
 const (

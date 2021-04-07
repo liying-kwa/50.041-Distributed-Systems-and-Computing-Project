@@ -87,8 +87,13 @@ func (n *Node) removeNodeFromRing() {
 func (n *Node) listenToRing(portNo string) {
 	http.HandleFunc("/read", n.ReadHandler)
 	http.HandleFunc("/write", n.WriteHandler)
+	http.HandleFunc("/transfer", n.)
 	log.Print(fmt.Sprintf("[NodeServer] Started and Listening at %s:%s.", n.Ip, n.Port))
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%s", n.Port), nil))
+}
+
+func (n *Node) TransferHandler(w http.ResponseWriter, r *http.Request) {
+	
 }
 
 func (n *Node) ReadHandler(w http.ResponseWriter, r *http.Request) {

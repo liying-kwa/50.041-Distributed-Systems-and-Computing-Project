@@ -247,6 +247,8 @@ func (ringServer *RingServer) AddNodeHandler(w http.ResponseWriter, r *http.Requ
 	log.Printf("[RingServer] Receiving Registration Request from a Node")
 	body, _ := ioutil.ReadAll(r.Body)
 	var nodeData lib.NodeData
+	var transferMessage lib.TransferMessage
+	nextNode := -1
 	json.Unmarshal(body, &nodeData)
 	ringNodeDataMap := ringServer.Ring.RingNodeDataMap
 
@@ -273,6 +275,25 @@ func (ringServer *RingServer) AddNodeHandler(w http.ResponseWriter, r *http.Requ
 	nodeData.Id = ringServer.Ring.MaxID + 1
 	ringServer.Ring.MaxID += 1
 	ringNodeDataMap[randomKey] = nodeData
+
+	//check where the node falls in the ring and send the transfer data back
+	keys := make([]int, len(ringNodeDataMap))
+	i := 0
+	for k := range ringNodeDataMap {
+		keys[i] = k
+		i++
+	}
+	sort.Ints(keys)
+	for _, key := range keys {
+		if randomKey < key {
+			nextNode = key
+			break
+		}
+	}
+
+	if nextNode != -1 {
+
+	}
 
 	responseBody, _ := json.Marshal(nodeData)
 	w.WriteHeader(http.StatusOK)
