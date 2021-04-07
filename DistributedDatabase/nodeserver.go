@@ -50,8 +50,11 @@ func (n *Node) addNodeToRing() {
 		n.Id = nodeData2.Id
 		n.ConnectedToRing = true
 		go n.listenToRing(n.Port)
+
 		// Create folder (unique to node) for storing data (if folder doesnt already exist)
+		// folderName := "node" + strconv.Itoa(n.Id)
 		folderName := "node" + strconv.Itoa(n.Id)
+
 		if _, err := os.Stat(folderName); os.IsNotExist(err) {
 			os.Mkdir(folderName, 0755)
 		}
@@ -90,7 +93,9 @@ func (n *Node) listenToRing(portNo string) {
 
 func (n *Node) ReadHandler(w http.ResponseWriter, r *http.Request) {
 	log.Printf("[NodeServer] Received Read Request from RingServer")
+
 	courseIdArray, ok := r.URL.Query()["courseid"]
+	keyHashArray, ok := r.URL.Query()["keyhash"]
 	if !ok || len(courseIdArray) < 1 {
 		problem := "Query parameter 'courseid' is missing"
 		fmt.Println(problem)
@@ -98,9 +103,20 @@ func (n *Node) ReadHandler(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(problem))
 		return
 	}
+
+	if !ok || len(keyHashArray) < 1 {
+		problem := "Query parameter 'keyhash' is missing"
+		fmt.Println(problem)
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(problem))
+		return
+	}
+
+	keyHash := keyHashArray[0]
 	courseId := courseIdArray[0]
-	//filename := "./" + string(courseId)
-	filename := fmt.Sprintf("./node%d/%s", n.Id, string(courseId))
+
+	count := ""
+	filename := fmt.Sprintf("./node%d/%s", n.Id, keyHash)
 	data, err := ioutil.ReadFile(filename)
 	if err != nil {
 		fmt.Println(err)
@@ -108,9 +124,17 @@ func (n *Node) ReadHandler(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(err.Error()))
 		return
 	}
-	fmt.Println("Returning count:", string(data))
+	lines := strings.Split(string(data), "\n")
+	for _, line := range lines {
+		if strings.Contains(line, courseId) {
+			interim := strings.Split(line, " ")
+			count = interim[1]
+		}
+	}
+
+	fmt.Println("Returning count:", count)
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(string(data)))
+	w.Write([]byte(count))
 }
 
 func (n *Node) WriteHandler(w http.ResponseWriter, r *http.Request) {
@@ -118,16 +142,61 @@ func (n *Node) WriteHandler(w http.ResponseWriter, r *http.Request) {
 	body, _ := ioutil.ReadAll(r.Body)
 	var message lib.Message
 	json.Unmarshal(body, &message)
-	//filename := "./" + message.CourseId
-	filename := fmt.Sprintf("./node%d/%s", n.Id, message.CourseId)
-	data := []byte(message.Count)
-	err := ioutil.WriteFile(filename, data, 0644)
-	if err != nil {
-		fmt.Println(err)
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte(err.Error()))
-		return
+	fmt.Println(message)
+	filename := fmt.Sprintf("./node%d/%s", n.Id, message.Hash)
+	dataToWrite := message.CourseId + " " + message.Count + "\n"
+
+	if _, err := os.Stat(filename); err == nil {
+		fmt.Printf("File already exists, proceeding to update file... \n")
+		isAlreadyInside := false
+
+		// to check if the courseId is alr inside, if it is, then update with this latest value
+		if !isAlreadyInside {
+			data, err := ioutil.ReadFile(filename)
+			if err != nil {
+				log.Fatalln(err)
+			}
+			lines := strings.Split(string(data), "\n")
+			for i, line := range lines {
+				if strings.Contains(line, message.CourseId) {
+					lines[i] = dataToWrite
+					isAlreadyInside = true
+				}
+			}
+			output := strings.Join(lines, "\n")
+			err = ioutil.WriteFile(filename, []byte(output), 0644)
+			if err != nil {
+				log.Fatalln(err)
+			}
+		}
+
+		// if course id is not inside, then append it
+		if !isAlreadyInside {
+			f, err := os.OpenFile(filename, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
+			if err != nil {
+				panic(err)
+			}
+			defer f.Close()
+			if _, err = f.WriteString(dataToWrite); err != nil {
+				panic(err)
+			}
+
+		}
+
+	} else {
+		fmt.Printf("File does not exist \n")
+		fmt.Printf("Creating file.... \n")
+		err := ioutil.WriteFile(filename, []byte(dataToWrite), 0644)
+		if err != nil {
+			fmt.Println(err)
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte(err.Error()))
+			return
+		}
+
 	}
+	// filename := fmt.Sprintf("./node%d/%s", n.Id, message.CourseId)
+	// data := []byte(message.Count)
 	fmt.Println("Successfully wrote to node!")
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("200 OK -- Successfully wrote to node!"))
