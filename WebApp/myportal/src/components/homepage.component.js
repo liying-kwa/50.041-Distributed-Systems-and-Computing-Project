@@ -9,9 +9,7 @@ export default class HomePage extends Component {
     constructor(props) {
         super(props); 
 
-        this.onChangeSubject = this.onChangeSubject.bind(this);
         this.onChangeCouseNumber = this.onChangeCouseNumber.bind(this);
-        this.onChangeCourseCareer = this.onChangeCourseCareer.bind(this);
         this.onSubmit = this.onSubmit.bind(this);
         this.selectCourse = this.selectCourse.bind(this);
         this.deleteCourse = this.deleteCourse.bind(this);
@@ -22,9 +20,6 @@ export default class HomePage extends Component {
         this.addAnotherClass = this.addAnotherClass.bind(this);
 
         this.state = {
-            subjects : ['01', '02', '03', '10', '20', '30', '40', '50', '51', '99'], 
-            courseNums: ['contains', 'greater than or equal to', 'is exactly', 'lesser than or equal to'],
-            courseCareers: ['Continuing Education Training', 'Master', 'Master of Architecture', 'Non-Graduating', 'PhD', "SUTD MIT Master", 'Undergradutate'],
             subject: '', 
             number: '', 
             career: '', 
@@ -191,15 +186,15 @@ export default class HomePage extends Component {
         })
     }
 
-    /* getCount(){
-        fetch('http://localhost:3000/api/v1/student/1003123', {
-            crossDomain:true,
-            method: 'GET',
-            headers: {'Content-Type':'application/json'},
-            }).then(response => response.json()).then(data => this.setState({
-                enrolledCoursesString: data.value
-             }));
-    } */
+    // getCount(){
+    //     fetch('http://localhost:3000/api/v1/student/1003123', {
+    //         crossDomain:true,
+    //         method: 'GET',
+    //         headers: {'Content-Type':'application/json'},
+    //         }).then(response => response.json()).then(data => this.setState({
+    //             enrolledCoursesString: data.value
+    //          }));
+    // } 
 
     getCount(courseId){
         fetch('http://localhost:3001/read-from-node?courseid=' + courseId, {
@@ -267,12 +262,16 @@ export default class HomePage extends Component {
 
         const notification = this.state.notification
         if (this.state.searchStage) {
+            let enrolledClass = <b></b>; 
+            if (this.state.enrolledCoursesString != "") {
+                enrolledClass = <b>Enrolled class:</b>
+            }
             return (
                 <div>
                     <p> {notification} </p>
                     <div className = 'row'>
                         <div className ='col'>
-                            <b>Enrolled class:</b> {this.state.enrolledCoursesString}
+                           {enrolledClass} {this.state.enrolledCoursesString}
                         </div>
                     </div>
                     <div className = 'row'>
@@ -280,55 +279,8 @@ export default class HomePage extends Component {
                     <h2>Class Search</h2> 
                     <form onSubmit={this.onSubmit}>
                         <div className = "form-group"> 
-                            <label>Subject</label>
-                            <select ref="userInput"
-                                required
-                                className="form-control"
-                                value={this.state.subject}
-                                onChange={this.onChangeSubject}>
-                                {
-                                    this.state.subjects.map(function(subject) {
-                                        return <option
-                                        key={subject}
-                                        value={subject}>{subject}
-                                        </option>;
-                                    })
-                                }
-                            </select>
-                        </div>
-                        <div className = "form-group"> 
-                            <label>Course Number</label>
-                            <select ref="userInput"
-                                required
-                                className="form-control"
-                                value={this.state.subject}
-                                onChange={this.onChangeSubject}>
-                                {
-                                    this.state.courseNums.map(function(number) {
-                                        return <option
-                                        key={number}
-                                        value={number}>{number}
-                                        </option>;
-                                    })
-                                }
-                            </select>
-                        </div>
-                        <div className = "form-group"> 
-                            <label>Course Career</label>
-                            <select ref="userInput"
-                                required
-                                className="form-control"
-                                value={this.state.subject}
-                                onChange={this.onChangeSubject}>
-                                {
-                                    this.state.courseCareers.map(function(career) {
-                                        return <option
-                                        key={career}
-                                        value={career}>{career}
-                                        </option>;
-                                    })
-                                }
-                            </select>
+                            <input type="text" class="form-control" placeholder="Enter Course Number"  value={this.state.courseNumber}
+                        onChange={this.onChangeCouseNumber}/>        
                         </div>
                             <div className="form-group">
                                 <input type="submit" value="Search" className="btn btn-primary"/>
