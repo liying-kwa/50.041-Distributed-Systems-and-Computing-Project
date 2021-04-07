@@ -79,7 +79,7 @@ export default class HomePage extends Component {
 
      cancelConfirm() {
          let tempEnrolledCourses = [...this.state.enrolledCourses]
-         if (this.state.enrolledCourses.length == 0) {
+         if (tempEnrolledCourses.length == 0) {
             tempEnrolledCourses = []
          }
          this.setState({
@@ -109,7 +109,7 @@ export default class HomePage extends Component {
            enrolledCourses: tempEnrolledCourses,
            notification: `You are successfully enrolled into Course ${this.state.courses[0].class}`
         })
-        this.timer = setInterval(() => {this.setState({success: false})}, 3000)
+        this.timer = setInterval(() => {this.setState({alert: false})}, 3000)
     }
 
     selectCourse(course) {
@@ -123,7 +123,7 @@ export default class HomePage extends Component {
             confirmStage: true , 
             notification: `Course ${course.class} is added to cart` 
         })
-        this.timer = setInterval(() => {this.setState({addToCart: false})}, 3000)
+        this.timer = setInterval(() => {this.setState({alert: false})}, 3000)
     }
 
     // deleteCourse(course) {
@@ -172,7 +172,7 @@ export default class HomePage extends Component {
             this.setState({
                 alert: true,
                 alertType: "invalidID",
-                notification: "Invalid Course Id"
+                notification: "Invalid Course ID"
             });
         })
         this.timer = setInterval(() => {this.setState({alert: false})}, 3000)
