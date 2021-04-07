@@ -9,6 +9,7 @@ const Course = props => (
       <td>{props.course.instructor}</td>
       <td>{props.course.meetDate}</td>
       <td>{props.course.status}</td>
+      <td>{props.course.seats}</td>
       <td>
         <button type="button" className="btn btn-primary" onClick={() => {props.selectCourse(props.course)}}>
                 Select

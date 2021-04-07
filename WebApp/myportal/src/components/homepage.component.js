@@ -21,6 +21,7 @@ export default class HomePage extends Component {
         this.addAnotherClass = this.addAnotherClass.bind(this);
 
         this.state = {
+            alert: false,
             subject: '', 
             number: '', 
             career: '', 
@@ -42,19 +43,20 @@ export default class HomePage extends Component {
                     instructor: "Staff", 
                     meetDate: "20/05/2019 - 16/08/2019",
                     status: 'Available', 
-                    units: '24.00'
+                    units: '24.00',
+                    seats:  0
                 },
-                {   
-                    _id: '2',
-                    class: "1194",
-                    section: "CH02-CLB Regular",
-                    dayTime: "Th 15:00 - 17:00", 
-                    room: "Think Tank 13 (1.508)", 
-                    instructor: "Staff", 
-                    meetDate: "20/05/2019 - 16/08/2019",
-                    status: 'Available', 
-                    units: '24.00'
-                }
+                // {   
+                //     _id: '2',
+                //     class: "1194",
+                //     section: "CH02-CLB Regular",
+                //     dayTime: "Th 15:00 - 17:00", 
+                //     room: "Think Tank 13 (1.508)", 
+                //     instructor: "Staff", 
+                //     meetDate: "20/05/2019 - 16/08/2019",
+                //     status: 'Available', 
+                //     units: '24.00' 
+                // }
             ],
             // search: false,
         }
@@ -80,11 +82,19 @@ export default class HomePage extends Component {
      }
 
      goToStep2() {
-         this.setState({
+        //  this.setState({
+        //     searchStage: false,
+        //     selectStage: false, 
+        //     confirmStage: true, 
+        //     successStage: false,
+        //     notification: ""
+        //  })
+        this.setState({
             searchStage: false,
             selectStage: false, 
-            confirmStage: true, 
-            successStage: false,
+            confirmStage: false,
+            successStage: true,
+            successCourses: [...this.state.enrolledCourses],
             notification: ""
          })
      }
@@ -214,7 +224,7 @@ export default class HomePage extends Component {
             .then(function(response) {
                 if (response.ok) {
                     // get count
-                    return response.text()
+                    console.log(response.text())
                     // this.setState({
                     //     count: response.text()
                     // })
@@ -226,24 +236,44 @@ export default class HomePage extends Component {
             });
     }
 
-     onSubmit(e) { 
+    onSubmit(e) { 
         e.preventDefault()
+        let course = [...this.state.courses]
         // console.log(this.state.number)
-        console.log(this.getCount(this.state.number))
-        // this.setState({
-        //     selectStage: true, 
-        //     searchStage: false,
-        //     confirmStage: false, 
-        // })
+        axios.get('http://localhost:3001/read-from-node?courseid=' + this.state.number)
+        .then(response => {
+            console.log(response)
+            course[0].seats = response.data
+            this.setState({
+                selectStage: true, 
+                searchStage: false,
+                confirmStage: false, 
+                courses: course,
+                number: "",
+                alert: false
+            })
+        })
+        .catch(error => {
+            // handle error
+            this.setState({
+                alert: true
+            });
+        })
+
     }
 
     render() {
+        let alertMessage
         let step2Button
         let enrolmentsummary
-        // this.getCount()
+        if (this.state.alert == true) {
+            alertMessage = <div class="alert alert-danger" role="alert">
+                            There is no such course!
+                        </div> 
+        } 
         if (this.state.enrolledCourses.length != 0)  {
             step2Button =  <button type="button" className="btn btn-primary" onClick={this.goToStep2}>
-                        Proceed to step 2 of 3
+                        Submit
                     </button>
             enrolmentsummary = <div>
             <h3>Enrollment Summary</h3>
@@ -268,7 +298,7 @@ export default class HomePage extends Component {
             </div>
         } else {
             enrolmentsummary = <div className="summary">
-                    <h2>No courses have been added to cart</h2>
+                    <h2>No Enrolled Courses</h2>
                 </div>
         }
 
@@ -280,6 +310,7 @@ export default class HomePage extends Component {
             }
             return (
                 <div>
+                    {alertMessage}
                     <p> {notification} </p>
                     <div className = 'row'>
                         <div className ='col'>
@@ -326,6 +357,7 @@ export default class HomePage extends Component {
                          <th>Instructor</th>
                          <th>Meeting Dates</th>
                          <th>Status</th>
+                         <th>Seats</th>
                          <th></th>
                          </tr>
                      </thead>
