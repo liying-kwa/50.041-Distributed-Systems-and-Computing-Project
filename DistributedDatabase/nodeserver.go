@@ -120,9 +120,10 @@ func (n *Node) ReadHandler(w http.ResponseWriter, r *http.Request) {
 	keyHash := keyHashArray[0]
 	courseId := courseIdArray[0]
 
-	count := ""
 	filename := fmt.Sprintf("./node%d/%s", n.Id, keyHash)
 	data, err := ioutil.ReadFile(filename)
+
+	// Check if keyfile exists in node at all
 	if err != nil {
 		fmt.Println(err)
 		w.WriteHeader(http.StatusBadRequest)
@@ -130,16 +131,36 @@ func (n *Node) ReadHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	lines := strings.Split(string(data), "\n")
+
+	// Check if courseId is in keyfile
+	exist := false
+	checkCourseId := "-1"
+	count := "-1"
 	for _, line := range lines {
-		if strings.Contains(line, courseId) {
-			interim := strings.Split(line, " ")
+		//if strings.Contains(line, courseId) {
+		//	interim := strings.Split(line, " ")
+		//	count = interim[1]
+		//}
+		interim := strings.Split(line, " ")
+		checkCourseId = interim[0]
+		if checkCourseId == courseId {
+			exist = true
 			count = interim[1]
+			break
 		}
 	}
 
-	fmt.Println("Returning count:", count)
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(count))
+	// If courseId exists, return count. Else, return 'error' msg
+	if exist == true {
+		fmt.Println("Returning count:", count)
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(count))
+	} else {
+		noCourseIdMsg := fmt.Sprintf("CourseID #%s does not exist.", courseId)
+		fmt.Println(noCourseIdMsg)
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(noCourseIdMsg))
+	}
 }
 
 func (n *Node) WriteHandler(w http.ResponseWriter, r *http.Request) {
@@ -149,7 +170,7 @@ func (n *Node) WriteHandler(w http.ResponseWriter, r *http.Request) {
 	json.Unmarshal(body, &message)
 	fmt.Println(message)
 	filename := fmt.Sprintf("./node%d/%s", n.Id, message.Hash)
-	dataToWrite := message.CourseId + " " + message.Count + "\n"
+	dataToWrite := message.CourseId + " " + message.Count
 
 	if _, err := os.Stat(filename); err == nil {
 		fmt.Printf("File already exists, proceeding to update file... \n")
@@ -182,7 +203,7 @@ func (n *Node) WriteHandler(w http.ResponseWriter, r *http.Request) {
 				panic(err)
 			}
 			defer f.Close()
-			if _, err = f.WriteString(dataToWrite); err != nil {
+			if _, err = f.WriteString("\n" + dataToWrite); err != nil {
 				panic(err)
 			}
 
