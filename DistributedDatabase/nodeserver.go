@@ -117,6 +117,8 @@ func (n *Node) TransferHandler(w http.ResponseWriter, r *http.Request) {
 
 	if trfMessage.Replica {
 		fmt.Print("[NodeServer] Received Transfer Request for Replica")
+		n.PredecessorIP = trfMessage.Ip
+		n.PredecessorPort = trfMessage.Port
 	} else {
 		fmt.Print("[NodeServer] Received Transfer Request for Data")
 	}
@@ -227,11 +229,13 @@ func (n *Node) TransferHandler(w http.ResponseWriter, r *http.Request) {
 
 		}
 		// Delete the file
-		if !trfMessage.Replica && (newNodeKey >= fileNameKey || fileNameKey > ownHash) {
+		if !trfMessage.Replica && (newNodeKey > ownHash && (newNodeKey >= fileNameKey && fileNameKey > ownHash)) || (newNodeKey < ownHash && (newNodeKey >= fileNameKey || fileNameKey > ownHash)) {
 			fmt.Printf("[DELETING FILE] %s\n", filename)
 			e := os.Remove(filename)
 			if e != nil {
 				log.Fatal(e)
+			} else {
+				fmt.Printf("Transferred the data successfully and deleted the file locally")
 			}
 		}
 	}
@@ -239,6 +243,10 @@ func (n *Node) TransferHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("Successfully updated new node!")
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("200 OK -- Successfully wrote to node!"))
+
+	if trfMessage.Replica {
+		// TODO: Tell previous node to trigger replica
+	}
 }
 
 func (n *Node) ReadHandler(w http.ResponseWriter, r *http.Request) {

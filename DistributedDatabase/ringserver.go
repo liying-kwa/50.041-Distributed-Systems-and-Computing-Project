@@ -309,7 +309,7 @@ func (ringServer *RingServer) AddNodeHandler(w http.ResponseWriter, r *http.Requ
 		prevNode = keys[(index-2)%len(keys)]
 	}
 
-	// TODO: Currently on sending information of 1 previous node, need to broadcast to all affected node the change of replicas
+	// TODO: Currently only sending information of 1 previous node, need to broadcast to all affected node the change of replicas
 	fmt.Printf("Previous node is at %s:%s\n", ringNodeDataMap[prevNode].Ip, ringNodeDataMap[prevNode].Port)
 	nodeData.PredecessorIP = ringNodeDataMap[prevNode].Ip
 	nodeData.PredecessorPort = ringNodeDataMap[prevNode].Port
@@ -320,7 +320,7 @@ func (ringServer *RingServer) AddNodeHandler(w http.ResponseWriter, r *http.Requ
 
 	fmt.Println(ringNodeDataMap)
 
-	// HTTP request to old node
+	// Request transfer to data from successor and informs that it is the predecessor
 	if nextNode != -1 {
 		go lib.RequestTransfer(ringNodeDataMap[randomKey].Ip, ringNodeDataMap[randomKey].Port, ringNodeDataMap[nextNode].Ip, ringNodeDataMap[nextNode].Port, randomKey, false)
 	}
