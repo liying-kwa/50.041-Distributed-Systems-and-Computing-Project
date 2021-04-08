@@ -58,7 +58,6 @@ func (n *Node) addNodeToRing() {
 		go n.listenToRing(n.Port)
 
 		// Create folder (unique to node) for storing data (if folder doesnt already exist)
-		// folderName := "node" + strconv.Itoa(n.Id)
 		folderName := "node" + strconv.Itoa(n.Id)
 
 		if _, err := os.Stat(folderName); os.IsNotExist(err) {
@@ -73,7 +72,9 @@ func (n *Node) addNodeToRing() {
 	if n.Ip == n.PredecessorIP && n.Port == n.PredecessorPort {
 		return
 	} else {
-		fmt.Println("Requesting predecessor for replica")
+		time.Sleep(time.Second * 2)
+		fmt.Printf("Requesting predecessor %s:%s for replica\n", n.PredecessorIP, n.PredecessorPort)
+		// Buffer time to allow receiving of supposed data before receiving replica
 		go lib.RequestTransfer(n.Ip, n.Port, n.PredecessorIP, n.PredecessorPort, -1, true)
 	}
 	// So that the command line can print correctly
@@ -109,16 +110,25 @@ func (n *Node) listenToRing(portNo string) {
 }
 
 func (n *Node) TransferHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Print("[NodeServer] Received Transfer Request for Data")
 	body, _ := ioutil.ReadAll(r.Body)
 	var trfMessage lib.TransferMessage
 	json.Unmarshal(body, &trfMessage)
-	fmt.Println(trfMessage)
+	fmt.Printf("Transfer Message: %v\n", trfMessage)
+
+	if trfMessage.Replica {
+		fmt.Print("[NodeServer] Received Transfer Request for Replica")
+	} else {
+		fmt.Print("[NodeServer] Received Transfer Request for Data")
+	}
 
 	foldername := fmt.Sprintf("./node%d/", n.Id)
 	items, _ := ioutil.ReadDir(foldername)
 
 	for _, item := range items {
+		// Skip transferring the replica folder
+		if item.Name() == "replica" {
+			continue
+		}
 		fileNameKey := -1
 		newNodeKey := -2
 		if correct, err := strconv.Atoi(item.Name()); err != nil {
@@ -156,12 +166,13 @@ func (n *Node) TransferHandler(w http.ResponseWriter, r *http.Request) {
 			ownHash = correct
 		}
 
+		filename := fmt.Sprintf("./node%d/%s", n.Id, item.Name())
 		lines := []string{}
-
+		print(newNodeKey, fileNameKey, ownHash)
 		// Sending all files to be replica or selected files to new node
-		if trfMessage.Replica || (newNodeKey >= fileNameKey || fileNameKey > ownHash) {
+		if trfMessage.Replica || (newNodeKey > ownHash && (newNodeKey >= fileNameKey && fileNameKey > ownHash)) || (newNodeKey < ownHash && (newNodeKey >= fileNameKey || fileNameKey > ownHash)) {
+			print(ownHash)
 			fmt.Printf("trying to read file \n")
-			filename := fmt.Sprintf("./node%d/%s", n.Id, item.Name())
 			data, err := ioutil.ReadFile(filename)
 			fmt.Printf("managed to read file \n")
 			if err != nil {
@@ -207,7 +218,7 @@ func (n *Node) TransferHandler(w http.ResponseWriter, r *http.Request) {
 			}
 			defer resp.Body.Close()
 			body, _ := ioutil.ReadAll(resp.Body)
-			//Checks response from node
+			// Checks response from node
 			if resp.StatusCode == 200 {
 				fmt.Println("Successfully wrote to node. Response:", string(body))
 			} else {
@@ -215,7 +226,14 @@ func (n *Node) TransferHandler(w http.ResponseWriter, r *http.Request) {
 			}
 
 		}
-
+		// Delete the file
+		if !trfMessage.Replica && (newNodeKey >= fileNameKey || fileNameKey > ownHash) {
+			fmt.Printf("[DELETING FILE] %s\n", filename)
+			e := os.Remove(filename)
+			if e != nil {
+				log.Fatal(e)
+			}
+		}
 	}
 
 	fmt.Println("Successfully updated new node!")
@@ -300,8 +318,14 @@ func (n *Node) WriteHandler(w http.ResponseWriter, r *http.Request) {
 	dataToWrite := message.CourseId + " " + message.Count
 
 	if message.Replica {
-		print("THIS IS REPLICATED DATA. IGNORE FIRST")
-		return
+		// Create folder (unique to node) for storing data (if folder doesnt already exist)
+		folderName := "./node" + strconv.Itoa(n.Id) + "/replica"
+
+		if _, err := os.Stat(folderName); os.IsNotExist(err) {
+			os.MkdirAll(folderName, os.ModePerm)
+		}
+
+		filename = fmt.Sprintf("./node%d/replica/%s", n.Id, message.Hash)
 	}
 
 	if _, err := os.Stat(filename); err == nil {
@@ -353,8 +377,7 @@ func (n *Node) WriteHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 	}
-	// filename := fmt.Sprintf("./node%d/%s", n.Id, message.CourseId)
-	// data := []byte(message.Count)
+
 	fmt.Println("Successfully wrote to node!")
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("200 OK -- Successfully wrote to node!"))
