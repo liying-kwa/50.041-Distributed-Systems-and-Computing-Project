@@ -1,35 +1,30 @@
 package main
 
 import (
+	"bufio"
+	"bytes"
+	"crypto/md5"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
+	"math"
 	"math/rand"
 	"net/http"
-	"sync"
+	"os"
+	"sort"
+	"strconv"
+	"strings"
+	"time"
 
-	"github.com/gofiber/fiber/v2"
-	"github.com/liying-kwa/50.041-Distributed-Systems-and-Computing-Project/DistributedDatabase/gofiber/api"
-	"github.com/liying-kwa/50.041-Distributed-Systems-and-Computing-Project/DistributedDatabase/gofiber/database"
 	"github.com/liying-kwa/50.041-Distributed-Systems-and-Computing-Project/DistributedDatabase/lib"
-	"gorm.io/driver/sqlite"
-	"gorm.io/gorm"
 )
 
-var wg = &sync.WaitGroup{}
-
-// TODO: Confirm key-value names
-type Student struct {
-	gorm.Model
-	Studentid int    `json:"key"`
-	Course    string `json:"value"`
-}
-
 type RingServer struct {
-	ip   string
-	port string
-	ring lib.Ring
+	Ip           string
+	NodesPort    string
+	FrontendPort string
+	Ring         lib.Ring
 }
 
 // Initiate socket of ring on port 5001 (for communication with node server)
@@ -37,99 +32,305 @@ func newRingServer() RingServer {
 	ip, _ := lib.ExternalIP()
 	return RingServer{
 		ip,
-		"5001",
+		lib.RINGSERVER_NODES_PORT,
+		lib.RINGSERVER_FRONTEND_PORT,
 		lib.Ring{
+			-1,
 			make(map[int]lib.NodeData),
 		},
 	}
 }
 
-// Listening on port 3001 (for communication with front-end)
-func setupRoutes(app *fiber.App) {
-	app.Get("/", func(c *fiber.Ctx) error { return c.SendString("Hello, World!") })
-	app.Get("/api/v1/student", api.GetStudents)
-	app.Get("/api/v1/student/:id", api.GetStudent)
-	app.Put("/api/v1/student/:id", api.PutStudent)
-	app.Post("/api/v1/student", api.NewStudent)
-	app.Delete("/api/v1/student/:id", api.DelStudent)
+// md5 hashing
+func HashMD5(text string, max int) int {
+	byteArray := md5.Sum([]byte(text))
+	var output int
+	for _, num := range byteArray {
+		output += int(num)
+	}
+	return output % max
 }
 
-// Listening on port 5001 (for communication with node servers)
-func start(ringServer RingServer) {
-	http.HandleFunc("/add-node", ringServer.addNodeHandler)
-	//http.HandleFunc("/faint-node", ringServer.FaintNodeHandler)
-	//http.HandleFunc("/remove-node", ringServer.RemoveNodeHandler)
-	//http.HandleFunc("/revive-node", ringServer.ReviveNodeHandler)
-	//http.HandleFunc("/get-node", ringServer.GetNodeHandler)
-	//http.HandleFunc("/hb", ringServer.HeartBeatHandler)
-	//http.HandleFunc("/get-ring", ringServer.GetRingHandler)
-	log.Print(fmt.Sprintf("[RingServer] Started and Listening at %s:%s.", ringServer.ip, ringServer.port))
-	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%s", ringServer.port), nil))
-}
+//   function to allocate the given CourseId to a node and return that node's ip:port
+//func (ringServer *RingServer) AllocateKey(key string) string {
+func (ringServer *RingServer) AllocateKey(key string) (lib.NodeData, string) {
+	nodeMap := ringServer.Ring.RingNodeDataMap
+	keyHash := HashMD5(key, lib.MAX_KEYS)
+	fmt.Printf("this is the hash below: \n")
+	fmt.Println(keyHash)
 
-// Initialise temporary SQL databse (see gofiber/api)
-func initDatabase() {
-	var err error
-	database.DBConn, err = gorm.Open(sqlite.Open("students.db"), &gorm.Config{})
-	if err != nil {
-		panic("Failed to connect to database")
+	var lowest int
+	lowest = math.MaxInt32
+
+	for key := range nodeMap {
+		if key < lowest {
+			lowest = key
+		}
 	}
-	fmt.Println("Database connection successfully opened!")
 
-	database.DBConn.AutoMigrate(&api.Student{})
-	fmt.Println("Database Migrated")
-
-	students := []Student{
-		{Studentid: 1001234, Course: "DS"},
-		{Studentid: 1000000, Course: "DB"},
-	}
-	for _, c := range students {
-		database.DBConn.Create(&c)
-	}
-}
-
-// Receive POST request from :5001/add-node
-func (ringServer *RingServer) addNodeHandler(w http.ResponseWriter, r *http.Request) {
-	log.Printf("[RingServer] Receiving Registration from Node %s", r.RemoteAddr)
-	body, _ := ioutil.ReadAll(r.Body)
-	var nodeData lib.NodeData
-	json.Unmarshal(body, &nodeData)
-
-	nodeMap := &ringServer.ring.RingNodeDataMap
-
-	// creating a random key between 0 and 100
-	var random int
-	random = rand.Intn(lib.MAX_KEYS)
-
-	// interim array to iterate through the keys easier
-	keys := make([]int, len(*nodeMap))
+	keys := make([]int, len(nodeMap))
 	i := 0
-	for k := range *nodeMap {
+	for k := range nodeMap {
 		keys[i] = k
 		i++
 	}
-
-	// making sure that the assigned key has not alr been assigned before
-	idx := 0
-	for idx < len(keys) {
-		if random == keys[idx] {
-			random = rand.Intn(lib.MAX_KEYS)
-			idx = 0
+	sort.Ints(keys)
+	for _, key := range keys {
+		if keyHash <= key {
+			//nodeURL := fmt.Sprintf("%s:%s", nodeMap[key].Ip, nodeMap[key].Port)
+			//return nodeURL
+			return nodeMap[key], strconv.Itoa(keyHash)
 		}
-		idx++
 	}
 
-	// Add node to ring
-	(*nodeMap)[random] = nodeData
-	fmt.Printf("Ring Structure: %v\n", *nodeMap)
-
-	// HTTP response
-	fmt.Fprintf(w, "Successlly added node to ring! ")
+	//nodeURL := fmt.Sprintf("%s:%s", nodeMap[lowest].Ip, nodeMap[lowest].Port)
+	//return nodeURL
+	return nodeMap[lowest], strconv.Itoa(keyHash)
 }
 
-<<<<<<< Updated upstream
-// Will take awhile for first run as code imports from Github
-=======
+// Listening on port 3001 for communication with Frontend
+func (ringServer RingServer) listenToFrontend() {
+	http.HandleFunc("/read-from-node", ringServer.ReadFromNodeHandler)
+	http.HandleFunc("/write-to-node", ringServer.WriteToNodeHandler)
+	log.Print(fmt.Sprintf("[RingServer] Started and Listening at %s:%s for Frontend.", ringServer.Ip, ringServer.FrontendPort))
+	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%s", ringServer.NodesPort), nil))
+}
+
+// TODO: Change to filename=key, data={courseID:count}
+func (ringServer RingServer) ReadFromNodeHandler(w http.ResponseWriter, r *http.Request) {
+	log.Printf("[RingServer] Received Read Request from Frontend")
+	courseIdArray, ok := r.URL.Query()["courseid"]
+	if !ok || len(courseIdArray) < 1 {
+		problem := "Query parameter 'courseid' is missing"
+		fmt.Println(problem)
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(problem))
+		return
+	}
+	courseId := courseIdArray[0]
+
+	// Create HTTP GET request and send to Node
+	nodeData, keyHash := ringServer.AllocateKey(courseId)
+	getURL := fmt.Sprintf("http://%s:%s/read?courseid=%s&keyhash=%s", nodeData.Ip, nodeData.Port, courseId, keyHash)
+	resp, err := http.Get(getURL)
+	if err != nil {
+		fmt.Println(err)
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(err.Error()))
+		return
+	}
+	defer resp.Body.Close()
+	body, _ := ioutil.ReadAll(resp.Body)
+
+	// Echo response back to Frontend
+	if resp.StatusCode == 200 {
+		fmt.Println("Successfully read from node. Response:", string(body))
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(string(body)))
+	} else {
+		fmt.Println("Failed to read from node. Reason:", string(body))
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(string(body)))
+	}
+
+}
+
+func (ringServer *RingServer) ReadFromNode(courseId string) string {
+	fmt.Println(ringServer.Ring.RingNodeDataMap)
+	nodeData, keyHash := ringServer.AllocateKey(courseId)
+	getURL := fmt.Sprintf("http://%s:%s/read?courseid=%s&keyhash=%s", nodeData.Ip, nodeData.Port, courseId, keyHash)
+	resp, err := http.Get(getURL)
+	if err != nil {
+		fmt.Println(err)
+		return "-1"
+	}
+	defer resp.Body.Close()
+	body, _ := ioutil.ReadAll(resp.Body)
+	if resp.StatusCode == 200 {
+		fmt.Println("Successfully read from node. Response:", string(body))
+		return string(body)
+	} else {
+		fmt.Println("Failed to read from node. Reason:", string(body))
+		return "-1"
+	}
+}
+
+func (ringServer RingServer) WriteToNodeHandler(w http.ResponseWriter, r *http.Request) {
+	log.Printf("[RingServer] Received Write Request from Frontend")
+	body, _ := ioutil.ReadAll(r.Body)
+	var message lib.Message
+	json.Unmarshal(body, &message)
+	courseId := message.CourseId
+	count := message.Count
+
+	// Create HTTP POST request and send to Node
+	countInt, err := strconv.Atoi(count)
+	if err != nil {
+		fmt.Println("Invalid count, must be an integer.")
+		return
+	}
+	if countInt < 0 {
+		fmt.Println("Invalid count, must be 0 or more")
+		return
+	}
+	nodeData, keyHash := ringServer.AllocateKey(courseId)
+	message2 := lib.Message{lib.Put, courseId, count, keyHash}
+	requestBody, _ := json.Marshal(message2)
+	postURL := fmt.Sprintf("http://%s:%s/write", nodeData.Ip, nodeData.Port)
+	resp, err := http.Post(postURL, "application/json", bytes.NewReader(requestBody))
+	if err != nil {
+		fmt.Println(err)
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(err.Error()))
+		return
+	}
+	defer resp.Body.Close()
+	body2, _ := ioutil.ReadAll(resp.Body)
+
+	// Echo response back to Frontend
+	if resp.StatusCode == 200 {
+		fmt.Println("Successfully wrote to node. Response:", string(body2))
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(string(body2)))
+	} else {
+		fmt.Println("Failed to write to node. Reason:", string(body2))
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(string(body2)))
+	}
+}
+
+func (ringServer *RingServer) WriteToNode(courseId string, count string) {
+	fmt.Println(ringServer.Ring.RingNodeDataMap)
+	countInt, err := strconv.Atoi(count)
+	if err != nil {
+		fmt.Println("Invalid count, must be an integer.")
+		return
+	}
+	if countInt < 0 {
+		fmt.Println("Invalid count, must be 0 or more")
+		return
+	}
+	nodeData, keyHash := ringServer.AllocateKey(courseId)
+	message := lib.Message{lib.Put, courseId, count, keyHash}
+	requestBody, _ := json.Marshal(message)
+	postURL := fmt.Sprintf("http://%s:%s/write", nodeData.Ip, nodeData.Port)
+	resp, err := http.Post(postURL, "application/json", bytes.NewReader(requestBody))
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	defer resp.Body.Close()
+	body, _ := ioutil.ReadAll(resp.Body)
+	//Checks response from node
+	if resp.StatusCode == 200 {
+		fmt.Println("Successfully wrote to node. Response:", string(body))
+	} else {
+		fmt.Println("Failed to write to node. Reason:", string(body))
+	}
+
+}
+
+// Listening on port 5001 for communication with Nodes
+func (ringServer RingServer) listenToNodes() {
+	// http.HandleFunc("/test", ringServer.test)
+	http.HandleFunc("/add-node", ringServer.AddNodeHandler)
+	http.HandleFunc("/remove-node", ringServer.RemoveNodeHandler)
+	//http.HandleFunc("/revive-node", ringServer.ReviveNodeHandler)
+	//http.HandleFunc("/get-node", ringServer.GetNodeHandler)
+	//http.HandleFunc("/get-ring", ringServer.GetRingHandler)
+	log.Print(fmt.Sprintf("[RingServer] Started and Listening at %s:%s for Nodes.", ringServer.Ip, ringServer.NodesPort))
+	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%s", ringServer.NodesPort), nil))
+}
+
+func (ringServer *RingServer) AddNodeHandler(w http.ResponseWriter, r *http.Request) {
+	log.Printf("[RingServer] Receiving Registration Request from a Node")
+	body, _ := ioutil.ReadAll(r.Body)
+	var nodeData lib.NodeData
+	nextNode := -1
+	json.Unmarshal(body, &nodeData)
+	ringNodeDataMap := ringServer.Ring.RingNodeDataMap
+
+	// Check if node is already in ring structure
+	for _, nd := range ringNodeDataMap {
+		if nd.Ip == nodeData.Ip && nd.Port == nodeData.Port {
+			fmt.Printf("Node %s:%s tries to connect but already registered previously. \n", nodeData.Ip, nodeData.Port)
+			w.WriteHeader(http.StatusConflict)
+			w.Write([]byte("409 Conflict -- Already registered"))
+			return
+		}
+	}
+
+	// Assign a random (but unique) key to the node and add to ring
+	randomKey := rand.Intn(lib.MAX_KEYS)
+	_, taken := ringNodeDataMap[randomKey]
+	for taken == true {
+		randomKey = rand.Intn(lib.MAX_KEYS)
+		_, taken = ringNodeDataMap[randomKey]
+	}
+
+	// Assign ID to node and add node to ring
+	fmt.Printf("Adding node %s:%s to the ring... \n", nodeData.Ip, nodeData.Port)
+	nodeData.Id = ringServer.Ring.MaxID + 1
+	ringServer.Ring.MaxID += 1
+	ringNodeDataMap[randomKey] = nodeData
+
+	//check where the node falls in the ring and send the transfer data back
+	keys := make([]int, len(ringNodeDataMap))
+	i := 0
+	for k := range ringNodeDataMap {
+		keys[i] = k
+		i++
+	}
+	sort.Ints(keys)
+
+	maxKey := keys[len(keys)-1]
+	minKey := keys[0]
+	if len(keys) > 1 {
+		for _, key := range keys {
+			if randomKey < key {
+				nextNode = key
+				break
+			} else if randomKey == maxKey {
+				nextNode = minKey
+				break
+			}
+		}
+	}
+	nodeData.Hash = strconv.Itoa(randomKey)
+	responseBody, _ := json.Marshal(nodeData)
+	w.WriteHeader(http.StatusOK)
+	w.Write(responseBody)
+
+	fmt.Printf("checking if got  nextNode \n")
+	fmt.Println(ringNodeDataMap)
+
+	// HTTP request to old node
+	if nextNode != -1 {
+		go requestTransfer(ringNodeDataMap, randomKey, nextNode)
+	}
+
+}
+
+func requestTransfer(ringNodeDataMap map[int]lib.NodeData, randomKey int, nextNode int) {
+	fmt.Printf("coming inside \n")
+	trfMessage := lib.TransferMessage{ringNodeDataMap[randomKey].Ip, ringNodeDataMap[randomKey].Port, strconv.Itoa(randomKey)}
+	requestBody, _ := json.Marshal(trfMessage)
+	postURL := fmt.Sprintf("http://%s:%s/transfer", ringNodeDataMap[nextNode].Ip, ringNodeDataMap[nextNode].Port)
+	resp, err := http.Post(postURL, "application/json", bytes.NewReader(requestBody))
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	defer resp.Body.Close()
+	body2, _ := ioutil.ReadAll(resp.Body)
+
+	if resp.StatusCode == 200 {
+		fmt.Println("Told next node about new node. Response:", string(body2))
+	} else {
+		fmt.Println("Failed to tell next node about new node. Reason:", string(body2))
+	}
+}
+
 // TEMP: To merge with add Node
 func (ringServer *RingServer) sendReplicate() {
 
@@ -138,7 +339,7 @@ func (ringServer *RingServer) sendReplicate() {
 		fmt.Println(nodeData)
 
 		requestBody, _ := json.Marshal(nodeData)
-		// Send to ring server
+		// TEMP: Hard Code
 		postURL := fmt.Sprintf("http://%s:%s/loadReplica", "192.168.56.1", "5003")
 		resp, err := http.Post(postURL, "application/json", bytes.NewReader(requestBody))
 		if err != nil {
@@ -155,22 +356,87 @@ func (ringServer *RingServer) sendReplicate() {
 	}
 }
 
->>>>>>> Stashed changes
+func (ringServer *RingServer) RemoveNodeHandler(w http.ResponseWriter, r *http.Request) {
+	log.Printf("[RingServer] Receiving De-registration Request from a Node")
+	body, _ := ioutil.ReadAll(r.Body)
+	var nodeData lib.NodeData
+	json.Unmarshal(body, &nodeData)
+	ringNodeDataMap := ringServer.Ring.RingNodeDataMap
+
+	// Check if node is already NOT in ring structure
+	notInside := true
+	assignedKey := -1
+	for key, nd := range ringNodeDataMap {
+		if nd.Ip == nodeData.Ip && nd.Port == nodeData.Port {
+			notInside = false
+			assignedKey = key
+			break
+		}
+	}
+	if notInside == true {
+		fmt.Printf("Node %s:%s tries to de-register but is already NOT in ring. \n", nodeData.Ip, nodeData.Port)
+		w.WriteHeader(http.StatusConflict)
+		w.Write([]byte("409 Conflict -- Already NOT in ring"))
+		return
+	}
+
+	// Remove node from ring
+	fmt.Printf("Removing node %s:%s from the ring... \n", nodeData.Ip, nodeData.Port)
+	delete(ringNodeDataMap, assignedKey)
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("200 OK -- Successlly removed node from ring!"))
+}
+
 func main() {
-	app := fiber.New()
-	initDatabase()
-	setupRoutes(app)
 
-	ip, _ := lib.ExternalIP()
+	// Set a different seed everytime so consistent hashing doesnt hash same keys
+	rand.Seed(time.Now().UTC().UnixNano())
 
+	// Initialise ringserver
 	theRingServer := newRingServer()
-	go start(theRingServer)
+	//go theRingServer.listenToFrontend()
+	//time.Sleep(time.Second * 3)
+	go theRingServer.listenToNodes()
+	time.Sleep(time.Second * 3)
 
-	api.GetRingStructure(theRingServer.ip, theRingServer.port, theRingServer.ring)
+	for {
+		fmt.Printf("RingServer> ")
+		cmdString, _ := bufio.NewReader(os.Stdin).ReadString('\n')
+		cmdString = strings.TrimSpace(cmdString)
+		//fmt.Printf("Command given by RingServer: %s \n", cmdString)
+		tokens := strings.Fields(cmdString)
+		if len(tokens) == 0 {
+			fmt.Println("Please enter a command. Use 'help' to see available commands.")
+			continue
+		}
 
-<<<<<<< Updated upstream
-	log.Print(fmt.Sprintf("[RingServer] To test, visit %s:%s/api/v1/student", ip, "3001"))
-=======
+		cmd := tokens[0]
+		switch cmd {
+
+		case "help":
+			fmt.Println("Commands accepted: help, info, ring")
+
+		case "info":
+			ringserverJson, _ := json.Marshal(theRingServer)
+			fmt.Println("RingServer information:")
+			fmt.Println(string(ringserverJson))
+
+		case "ring":
+			if len(theRingServer.Ring.RingNodeDataMap) == 0 {
+				fmt.Println("Ring is empty at the moment.")
+			} else {
+				for key, nd := range theRingServer.Ring.RingNodeDataMap {
+					nodeDataJson, _ := json.Marshal(nd)
+					fmt.Printf("key=%d, %s \n", key, string(nodeDataJson))
+				}
+			}
+
+		// testing read
+		case "read":
+			courseId := tokens[1]
+			count := theRingServer.ReadFromNode(courseId)
+			fmt.Println("Returned count:", count)
+
 		// testing write
 		case "write":
 			courseId := tokens[1]
@@ -188,7 +454,5 @@ func main() {
 
 		fmt.Println()
 	}
->>>>>>> Stashed changes
 
-	app.Listen(ip + ":3001")
 }

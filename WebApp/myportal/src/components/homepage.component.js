@@ -191,7 +191,7 @@ export default class HomePage extends Component {
         })
     }
 
-    getStudent(){
+    /* getCount(){
         fetch('http://localhost:3000/api/v1/student/1003123', {
             crossDomain:true,
             method: 'GET',
@@ -199,6 +199,26 @@ export default class HomePage extends Component {
             }).then(response => response.json()).then(data => this.setState({
                 enrolledCoursesString: data.value
              }));
+    } */
+
+    getCount(courseId){
+        fetch('http://localhost:3001/read-from-node?courseid=' + courseId, {
+            crossDomain:true,
+            method: 'GET',
+            headers: {'Content-Type':'text/plain'},
+            })
+            .then(function(response) {
+                if (response.ok) {
+                    // get count
+                    this.setState({
+                        count: response.text()
+                    })
+                }
+                else {
+                    // print error
+                    console.log(response.text())
+                }
+            });
     }
 
      onSubmit(e) { 
@@ -213,7 +233,7 @@ export default class HomePage extends Component {
     render() {
         let step2Button
         let enrolmentsummary
-        this.getStudent()
+        this.getCount()
         if (this.state.enrolledCourses.length != 0)  {
             step2Button =  <button type="button" className="btn btn-primary" onClick={this.goToStep2}>
                         Proceed to step 2 of 3
