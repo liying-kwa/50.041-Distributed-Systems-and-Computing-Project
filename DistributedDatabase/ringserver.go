@@ -247,7 +247,6 @@ func (ringServer *RingServer) AddNodeHandler(w http.ResponseWriter, r *http.Requ
 	log.Printf("[RingServer] Receiving Registration Request from a Node")
 	body, _ := ioutil.ReadAll(r.Body)
 	var nodeData lib.NodeData
-	var transferMessage lib.TransferMessage
 	nextNode := -1
 	json.Unmarshal(body, &nodeData)
 	ringNodeDataMap := ringServer.Ring.RingNodeDataMap
@@ -291,13 +290,33 @@ func (ringServer *RingServer) AddNodeHandler(w http.ResponseWriter, r *http.Requ
 		}
 	}
 
-	if nextNode != -1 {
-
-	}
-
 	responseBody, _ := json.Marshal(nodeData)
 	w.WriteHeader(http.StatusOK)
 	w.Write(responseBody)
+
+	fmt.Printf("checking if got  nextNode \n")
+	fmt.Println(ringNodeDataMap)
+	if nextNode != -1 {
+		fmt.Printf("coming inside \n")
+		trfMessage := lib.TransferMessage{ringNodeDataMap[randomKey].Ip, ringNodeDataMap[randomKey].Port, strconv.Itoa(randomKey)}
+		requestBody, _ := json.Marshal(trfMessage)
+		postURL := fmt.Sprintf("http://%s:%s/transfer", ringNodeDataMap[nextNode].Ip, ringNodeDataMap[nextNode].Port)
+		resp, err := http.Post(postURL, "application/json", bytes.NewReader(requestBody))
+		if err != nil {
+			fmt.Println(err)
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte(err.Error()))
+			return
+		}
+		defer resp.Body.Close()
+		body2, _ := ioutil.ReadAll(resp.Body)
+
+		if resp.StatusCode == 200 {
+			fmt.Println("Told next node about new node. Response:", string(body2))
+		} else {
+			fmt.Println("Failed to tell next node about new node. Reason:", string(body2))
+		}
+	}
 
 	//---------------------- uncomment block below to just test the hashing function----------------//
 	// var CourseID string
