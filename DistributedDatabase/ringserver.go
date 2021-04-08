@@ -283,39 +283,49 @@ func (ringServer *RingServer) AddNodeHandler(w http.ResponseWriter, r *http.Requ
 		i++
 	}
 	sort.Ints(keys)
-	for _, key := range keys {
-		if randomKey < key {
-			nextNode = key
-			break
+
+	maxKey := keys[len(keys)-1]
+	minKey := keys[0]
+	if len(keys) > 1 {
+		for _, key := range keys {
+			if randomKey < key {
+				nextNode = key
+				break
+			} else if randomKey == maxKey {
+				nextNode = minKey
+				break
+			}
 		}
 	}
-
+	nodeData.Hash = strconv.Itoa(randomKey)
 	responseBody, _ := json.Marshal(nodeData)
 	w.WriteHeader(http.StatusOK)
 	w.Write(responseBody)
 
 	fmt.Printf("checking if got  nextNode \n")
 	fmt.Println(ringNodeDataMap)
+
+	// HTTP request to old node
 	if nextNode != -1 {
 		fmt.Printf("coming inside \n")
 		trfMessage := lib.TransferMessage{ringNodeDataMap[randomKey].Ip, ringNodeDataMap[randomKey].Port, strconv.Itoa(randomKey)}
 		requestBody, _ := json.Marshal(trfMessage)
 		postURL := fmt.Sprintf("http://%s:%s/transfer", ringNodeDataMap[nextNode].Ip, ringNodeDataMap[nextNode].Port)
-		resp, err := http.Post(postURL, "application/json", bytes.NewReader(requestBody))
+		_, err := http.Post(postURL, "application/json", bytes.NewReader(requestBody))
 		if err != nil {
 			fmt.Println(err)
 			w.WriteHeader(http.StatusBadRequest)
 			w.Write([]byte(err.Error()))
 			return
 		}
-		defer resp.Body.Close()
-		body2, _ := ioutil.ReadAll(resp.Body)
+		// defer resp.Body.Close()
+		// body2, _ := ioutil.ReadAll(resp.Body)
 
-		if resp.StatusCode == 200 {
-			fmt.Println("Told next node about new node. Response:", string(body2))
-		} else {
-			fmt.Println("Failed to tell next node about new node. Reason:", string(body2))
-		}
+		// if resp.StatusCode == 200 {
+		// 	fmt.Println("Told next node about new node. Response:", string(body2))
+		// } else {
+		// 	fmt.Println("Failed to tell next node about new node. Reason:", string(body2))
+		// }
 	}
 
 	//---------------------- uncomment block below to just test the hashing function----------------//

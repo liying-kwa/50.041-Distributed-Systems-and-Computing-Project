@@ -9,6 +9,7 @@ type NodeData struct {
 	Id   int
 	Ip   string
 	Port string
+	Hash string
 }
 
 type Message struct {

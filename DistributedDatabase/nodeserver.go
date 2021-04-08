@@ -20,6 +20,7 @@ type Node struct {
 	Id   int
 	Ip   string
 	Port string
+	Hash string
 
 	ConnectedToRing bool
 	RingServerIp    string
@@ -29,11 +30,11 @@ type Node struct {
 
 func newNode(id int, portNo string) *Node {
 	ip, _ := lib.ExternalIP()
-	return &Node{id, ip, portNo, false, lib.RINGSERVER_IP, lib.RINGSERVER_NODES_PORT}
+	return &Node{id, ip, portNo, "", false, lib.RINGSERVER_IP, lib.RINGSERVER_NODES_PORT}
 }
 
 func (n *Node) addNodeToRing() {
-	nodeData := lib.NodeData{n.Id, n.Ip, n.Port}
+	nodeData := lib.NodeData{n.Id, n.Ip, n.Port, ""}
 	requestBody, _ := json.Marshal(nodeData)
 	// Send to ring server
 	postURL := fmt.Sprintf("http://%s:%s/add-node", n.RingServerIp, n.RingServerPort)
@@ -48,6 +49,7 @@ func (n *Node) addNodeToRing() {
 		var nodeData2 lib.NodeData
 		json.Unmarshal(responseBody, &nodeData2)
 		n.Id = nodeData2.Id
+		n.Hash = nodeData2.Hash
 		n.ConnectedToRing = true
 		go n.listenToRing(n.Port)
 
@@ -66,22 +68,22 @@ func (n *Node) addNodeToRing() {
 }
 
 func (n *Node) removeNodeFromRing() {
-	nodeData := lib.NodeData{n.Id, n.Ip, n.Port}
-	requestBody, _ := json.Marshal(nodeData)
-	postURL := fmt.Sprintf("http://%s:%s/remove-node", n.RingServerIp, n.RingServerPort)
-	resp, err := http.Post(postURL, "application/json", bytes.NewReader(requestBody))
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	defer resp.Body.Close()
-	body, _ := ioutil.ReadAll(resp.Body)
-	if resp.StatusCode == 200 {
-		n.ConnectedToRing = false
-		fmt.Println("Successfully de-registered. Response:", string(body))
-	} else {
-		fmt.Println("Failed to de-register. Reason:", string(body))
-	}
+	// nodeData := lib.NodeData{n.Id, n.Ip, n.Port}
+	// requestBody, _ := json.Marshal(nodeData)
+	// postURL := fmt.Sprintf("http://%s:%s/remove-node", n.RingServerIp, n.RingServerPort)
+	// resp, err := http.Post(postURL, "application/json", bytes.NewReader(requestBody))
+	// if err != nil {
+	// 	fmt.Println(err)
+	// 	return
+	// }
+	// defer resp.Body.Close()
+	// body, _ := ioutil.ReadAll(resp.Body)
+	// if resp.StatusCode == 200 {
+	// 	n.ConnectedToRing = false
+	// 	fmt.Println("Successfully de-registered. Response:", string(body))
+	// } else {
+	// 	fmt.Println("Failed to de-register. Reason:", string(body))
+	// }
 }
 
 func (n *Node) listenToRing(portNo string) {
@@ -98,12 +100,16 @@ func (n *Node) TransferHandler(w http.ResponseWriter, r *http.Request) {
 	var trfMessage lib.TransferMessage
 	json.Unmarshal(body, &trfMessage)
 	fmt.Println(trfMessage)
-	foldername := fmt.Sprintf("./node%d", n.Id)
+	foldername := fmt.Sprintf("./node%d/", n.Id)
 	items, _ := ioutil.ReadDir(foldername)
+
+	fmt.Printf("files: \n")
+	fmt.Println(items)
 
 	fmt.Printf("going to iterate through the items")
 
 	for _, item := range items {
+		fmt.Printf("yay i am looping....")
 		fileNameKey := -1
 		newNodeKey := -2
 		if correct, err := strconv.Atoi(item.Name()); err != nil {
@@ -130,8 +136,22 @@ func (n *Node) TransferHandler(w http.ResponseWriter, r *http.Request) {
 		fmt.Printf("this is the newnodekey: \n")
 		fmt.Println(newNodeKey)
 
-		if newNodeKey >= fileNameKey {
-			data, err := ioutil.ReadFile(item.Name())
+		ownHash := -1
+
+		if correct, err := strconv.Atoi(n.Hash); err != nil {
+			fmt.Println(err)
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte(err.Error()))
+			return
+		} else {
+			ownHash = correct
+		}
+
+		if newNodeKey >= fileNameKey || fileNameKey > ownHash {
+			fmt.Printf("trying to read file \n")
+			filename := fmt.Sprintf("./node%d/%s", n.Id, item.Name())
+			data, err := ioutil.ReadFile(filename)
+			fmt.Printf("managed to read file \n")
 			if err != nil {
 				fmt.Println(err)
 				w.WriteHeader(http.StatusBadRequest)
@@ -144,14 +164,30 @@ func (n *Node) TransferHandler(w http.ResponseWriter, r *http.Request) {
 			fmt.Println(lines)
 
 			for _, line := range lines {
+				fmt.Printf("trying to send lines")
 				interim := strings.Split(line, " ")
+
+				fmt.Printf("interim list: \n")
+				fmt.Println(interim)
+
+				fmt.Printf("courseid: \n")
+				fmt.Println(interim[0])
 				courseId := interim[0]
+
+				fmt.Printf("count: \n")
+				fmt.Println(interim[1])
 				count := interim[1]
+
 				message := lib.Message{lib.Put, courseId, count, item.Name()}
+				fmt.Printf("message to be sent over: \n")
+				fmt.Println(message)
+				fmt.Println(n.Port)
+				time.Sleep(time.Second * 5)
 				requestBody, _ := json.Marshal(message)
 				postURL := fmt.Sprintf("http://%s:%s/write", trfMessage.Ip, trfMessage.Port)
 				resp, err := http.Post(postURL, "application/json", bytes.NewReader(requestBody))
 				if err != nil {
+					fmt.Printf("there is an error")
 					fmt.Println(err)
 					return
 				}
