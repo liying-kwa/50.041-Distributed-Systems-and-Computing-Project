@@ -127,7 +127,35 @@ func (ringServer *RingServer) addNodeHandler(w http.ResponseWriter, r *http.Requ
 	fmt.Fprintf(w, "Successlly added node to ring! ")
 }
 
+<<<<<<< Updated upstream
 // Will take awhile for first run as code imports from Github
+=======
+// TEMP: To merge with add Node
+func (ringServer *RingServer) sendReplicate() {
+
+	for _, nd := range ringServer.Ring.RingNodeDataMap {
+		nodeData := nd
+		fmt.Println(nodeData)
+
+		requestBody, _ := json.Marshal(nodeData)
+		// Send to ring server
+		postURL := fmt.Sprintf("http://%s:%s/loadReplica", "192.168.56.1", "5003")
+		resp, err := http.Post(postURL, "application/json", bytes.NewReader(requestBody))
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode == 200 {
+			fmt.Println("Great!")
+		}
+
+		break
+	}
+}
+
+>>>>>>> Stashed changes
 func main() {
 	app := fiber.New()
 	initDatabase()
@@ -140,7 +168,27 @@ func main() {
 
 	api.GetRingStructure(theRingServer.ip, theRingServer.port, theRingServer.ring)
 
+<<<<<<< Updated upstream
 	log.Print(fmt.Sprintf("[RingServer] To test, visit %s:%s/api/v1/student", ip, "3001"))
+=======
+		// testing write
+		case "write":
+			courseId := tokens[1]
+			count := tokens[2]
+			theRingServer.WriteToNode(courseId, count)
+
+		// TEMP: To test replicate API call
+		case "rehash":
+			theRingServer.sendReplicate()
+
+		default:
+			fmt.Println("Unknown command. Use 'help' to see available commands.")
+
+		}
+
+		fmt.Println()
+	}
+>>>>>>> Stashed changes
 
 	app.Listen(ip + ":3001")
 }
