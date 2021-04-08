@@ -202,6 +202,13 @@ func (n *Node) TransferHandler(w http.ResponseWriter, r *http.Request) {
 
 			}
 
+			e := os.Remove(filename)
+			if e != nil {
+				log.Fatal(e)
+			} else {
+				fmt.Printf("Transferred the data successfully and deleted the file locally")
+			}
+
 		}
 
 	}
