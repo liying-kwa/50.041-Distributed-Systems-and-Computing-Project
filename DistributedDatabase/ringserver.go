@@ -174,7 +174,7 @@ func (ringServer RingServer) WriteToNodeHandler(w http.ResponseWriter, r *http.R
 		return
 	}
 	nodeData, keyHash := ringServer.AllocateKey(courseId)
-	message2 := lib.Message{lib.Put, courseId, count, keyHash}
+	message2 := lib.Message{Type: lib.Put, CourseId: courseId, Count: count, Hash: keyHash, Replica: false}
 	requestBody, _ := json.Marshal(message2)
 	postURL := fmt.Sprintf("http://%s:%s/write", nodeData.Ip, nodeData.Port)
 	resp, err := http.Post(postURL, "application/json", bytes.NewReader(requestBody))
@@ -211,7 +211,7 @@ func (ringServer *RingServer) WriteToNode(courseId string, count string) {
 		return
 	}
 	nodeData, keyHash := ringServer.AllocateKey(courseId)
-	message := lib.Message{lib.Put, courseId, count, keyHash}
+	message := lib.Message{Type: lib.Put, CourseId: courseId, Count: count, Hash: keyHash, Replica: false}
 	requestBody, _ := json.Marshal(message)
 	postURL := fmt.Sprintf("http://%s:%s/write", nodeData.Ip, nodeData.Port)
 	resp, err := http.Post(postURL, "application/json", bytes.NewReader(requestBody))
@@ -247,6 +247,7 @@ func (ringServer *RingServer) AddNodeHandler(w http.ResponseWriter, r *http.Requ
 	body, _ := ioutil.ReadAll(r.Body)
 	var nodeData lib.NodeData
 	nextNode := -1
+	prevNode := -1
 	json.Unmarshal(body, &nodeData)
 	ringNodeDataMap := ringServer.Ring.RingNodeDataMap
 
@@ -285,50 +286,45 @@ func (ringServer *RingServer) AddNodeHandler(w http.ResponseWriter, r *http.Requ
 
 	maxKey := keys[len(keys)-1]
 	minKey := keys[0]
+	index := -1
+
 	if len(keys) > 1 {
-		for _, key := range keys {
+		for idx, key := range keys {
 			if randomKey < key {
 				nextNode = key
+				index = idx
 				break
 			} else if randomKey == maxKey {
 				nextNode = minKey
+				index = idx
 				break
 			}
 		}
 	}
+
+	if ((index - 2) % len(keys)) < 0 {
+		prevNode = keys[len(keys)+(index-2)%len(keys)]
+		print("HEY")
+	} else {
+		prevNode = keys[(index-2)%len(keys)]
+	}
+
+	// TODO: Currently on sending information of 1 previous node, need to broadcast to all affected node the change of replicas
+	fmt.Printf("Previous node is at %s:%s\n", ringNodeDataMap[prevNode].Ip, ringNodeDataMap[prevNode].Port)
+	nodeData.PredecessorIP = ringNodeDataMap[prevNode].Ip
+	nodeData.PredecessorPort = ringNodeDataMap[prevNode].Port
 	nodeData.Hash = strconv.Itoa(randomKey)
 	responseBody, _ := json.Marshal(nodeData)
 	w.WriteHeader(http.StatusOK)
 	w.Write(responseBody)
 
-	fmt.Printf("checking if got  nextNode \n")
 	fmt.Println(ringNodeDataMap)
 
 	// HTTP request to old node
 	if nextNode != -1 {
-		go requestTransfer(ringNodeDataMap, randomKey, nextNode)
+		go lib.RequestTransfer(ringNodeDataMap[randomKey].Ip, ringNodeDataMap[randomKey].Port, ringNodeDataMap[nextNode].Ip, ringNodeDataMap[nextNode].Port, randomKey, false)
 	}
 
-}
-
-func requestTransfer(ringNodeDataMap map[int]lib.NodeData, randomKey int, nextNode int) {
-	fmt.Printf("coming inside \n")
-	trfMessage := lib.TransferMessage{ringNodeDataMap[randomKey].Ip, ringNodeDataMap[randomKey].Port, strconv.Itoa(randomKey)}
-	requestBody, _ := json.Marshal(trfMessage)
-	postURL := fmt.Sprintf("http://%s:%s/transfer", ringNodeDataMap[nextNode].Ip, ringNodeDataMap[nextNode].Port)
-	resp, err := http.Post(postURL, "application/json", bytes.NewReader(requestBody))
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	defer resp.Body.Close()
-	body2, _ := ioutil.ReadAll(resp.Body)
-
-	if resp.StatusCode == 200 {
-		fmt.Println("Told next node about new node. Response:", string(body2))
-	} else {
-		fmt.Println("Failed to tell next node about new node. Reason:", string(body2))
-	}
 }
 
 // TEMP: To merge with add Node

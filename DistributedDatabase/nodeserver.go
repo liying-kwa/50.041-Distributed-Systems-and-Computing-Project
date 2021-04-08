@@ -22,19 +22,20 @@ type Node struct {
 	Port string
 	Hash string
 
-	ConnectedToRing  bool
-	RingServerIp     string
-	RingServerPort   string
-	NodesToReplicate []lib.NodeData
+	ConnectedToRing bool
+	RingServerIp    string
+	RingServerPort  string
+	PredecessorIP   string
+	PredecessorPort string
 }
 
 func newNode(id int, portNo string) *Node {
 	ip, _ := lib.ExternalIP()
-	return &Node{id, ip, portNo, "", false, lib.RINGSERVER_IP, lib.RINGSERVER_NODES_PORT, []lib.NodeData{}}
+	return &Node{id, ip, portNo, "", false, lib.RINGSERVER_IP, lib.RINGSERVER_NODES_PORT, "", ""}
 }
 
 func (n *Node) addNodeToRing() {
-	nodeData := lib.NodeData{n.Id, n.Ip, n.Port, ""}
+	nodeData := lib.NodeData{Id: n.Id, Ip: n.Ip, Port: n.Port, Hash: "", PredecessorIP: "", PredecessorPort: ""}
 	requestBody, _ := json.Marshal(nodeData)
 	// Send to ring server
 	postURL := fmt.Sprintf("http://%s:%s/add-node", n.RingServerIp, n.RingServerPort)
@@ -51,6 +52,8 @@ func (n *Node) addNodeToRing() {
 		n.Id = nodeData2.Id
 		n.Hash = nodeData2.Hash
 		n.ConnectedToRing = true
+		n.PredecessorIP = nodeData2.PredecessorIP
+		n.PredecessorPort = nodeData2.PredecessorPort
 		fmt.Println(nodeData2)
 		go n.listenToRing(n.Port)
 
@@ -65,6 +68,15 @@ func (n *Node) addNodeToRing() {
 	} else {
 		fmt.Println("Failed to register. Response:", string(responseBody))
 	}
+
+	// Request for replica
+	if n.Ip == n.PredecessorIP && n.Port == n.PredecessorPort {
+		return
+	} else {
+		fmt.Println("Requesting predecessor for replica")
+		go lib.RequestTransfer(n.Ip, n.Port, n.PredecessorIP, n.PredecessorPort, -1, true)
+	}
+	// So that the command line can print correctly
 	time.Sleep(time.Second)
 }
 
@@ -92,28 +104,21 @@ func (n *Node) listenToRing(portNo string) {
 	http.HandleFunc("/write", n.WriteHandler)
 	http.HandleFunc("/transfer", n.TransferHandler)
 	http.HandleFunc("/loadReplica", n.LoadRepHandler)
-	// http.HandleFunc("/reqData", n.ReqDataHandler)
-	// http.HandleFunc("/recData", n.RecDataHandler)
 	log.Print(fmt.Sprintf("[NodeServer] Started and Listening at %s:%s.", n.Ip, n.Port))
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%s", n.Port), nil))
 }
 
 func (n *Node) TransferHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Printf("[NodeServer] Received Transfer Request from RingServer")
+	fmt.Print("[NodeServer] Received Transfer Request for Data")
 	body, _ := ioutil.ReadAll(r.Body)
 	var trfMessage lib.TransferMessage
 	json.Unmarshal(body, &trfMessage)
 	fmt.Println(trfMessage)
+
 	foldername := fmt.Sprintf("./node%d/", n.Id)
 	items, _ := ioutil.ReadDir(foldername)
 
-	fmt.Printf("files: \n")
-	fmt.Println(items)
-
-	fmt.Printf("going to iterate through the items")
-
 	for _, item := range items {
-		fmt.Printf("yay i am looping....")
 		fileNameKey := -1
 		newNodeKey := -2
 		if correct, err := strconv.Atoi(item.Name()); err != nil {
@@ -134,11 +139,11 @@ func (n *Node) TransferHandler(w http.ResponseWriter, r *http.Request) {
 			newNodeKey = correct
 		}
 
-		fmt.Printf("this is the filenamekey: \n")
-		fmt.Println(fileNameKey)
+		// fmt.Printf("this is the filenamekey: \n")
+		// fmt.Println(fileNameKey)
 
-		fmt.Printf("this is the newnodekey: \n")
-		fmt.Println(newNodeKey)
+		// fmt.Printf("this is the newnodekey: \n")
+		// fmt.Println(newNodeKey)
 
 		ownHash := -1
 
@@ -151,7 +156,10 @@ func (n *Node) TransferHandler(w http.ResponseWriter, r *http.Request) {
 			ownHash = correct
 		}
 
-		if newNodeKey >= fileNameKey || fileNameKey > ownHash {
+		lines := []string{}
+
+		// Sending all files to be replica or selected files to new node
+		if trfMessage.Replica || (newNodeKey >= fileNameKey || fileNameKey > ownHash) {
 			fmt.Printf("trying to read file \n")
 			filename := fmt.Sprintf("./node%d/%s", n.Id, item.Name())
 			data, err := ioutil.ReadFile(filename)
@@ -162,47 +170,48 @@ func (n *Node) TransferHandler(w http.ResponseWriter, r *http.Request) {
 				w.Write([]byte(err.Error()))
 				return
 			}
-			lines := strings.Split(string(data), "\n")
+			lines = strings.Split(string(data), "\n")
+		} else {
+			continue
+		}
 
-			fmt.Printf("this is the lines list: \n")
-			fmt.Println(lines)
+		for _, line := range lines {
+			fmt.Printf("trying to send lines")
+			interim := strings.Split(line, " ")
 
-			for _, line := range lines {
-				fmt.Printf("trying to send lines")
-				interim := strings.Split(line, " ")
+			// fmt.Printf("interim list: \n")
+			// fmt.Println(interim)
 
-				fmt.Printf("interim list: \n")
-				fmt.Println(interim)
+			// fmt.Printf("courseid: \n")
+			// fmt.Println(interim[0])
+			courseId := interim[0]
 
-				fmt.Printf("courseid: \n")
-				fmt.Println(interim[0])
-				courseId := interim[0]
+			// fmt.Printf("count: \n")
+			// fmt.Println(interim[1])
+			count := interim[1]
 
-				fmt.Printf("count: \n")
-				fmt.Println(interim[1])
-				count := interim[1]
-
-				message := lib.Message{lib.Put, courseId, count, item.Name()}
-				fmt.Printf("message to be sent over: \n")
-				fmt.Println(message)
-				fmt.Println(n.Port)
-				requestBody, _ := json.Marshal(message)
-				postURL := fmt.Sprintf("http://%s:%s/write", trfMessage.Ip, trfMessage.Port)
-				resp, err := http.Post(postURL, "application/json", bytes.NewReader(requestBody))
-				if err != nil {
-					fmt.Printf("there is an error")
-					fmt.Println(err)
-					return
-				}
-				defer resp.Body.Close()
-				body, _ := ioutil.ReadAll(resp.Body)
-				//Checks response from node
-				if resp.StatusCode == 200 {
-					fmt.Println("Successfully wrote to node. Response:", string(body))
-				} else {
-					fmt.Println("Failed to write to node. Reason:", string(body))
-				}
-
+			message := lib.Message{}
+			if trfMessage.Replica {
+				message = lib.Message{Type: lib.Put, CourseId: courseId, Count: count, Hash: item.Name(), Replica: true}
+			} else {
+				message = lib.Message{Type: lib.Put, CourseId: courseId, Count: count, Hash: item.Name(), Replica: false}
+			}
+			fmt.Printf("message to be sent over: \n")
+			requestBody, _ := json.Marshal(message)
+			postURL := fmt.Sprintf("http://%s:%s/write", trfMessage.Ip, trfMessage.Port)
+			resp, err := http.Post(postURL, "application/json", bytes.NewReader(requestBody))
+			if err != nil {
+				fmt.Printf("there is an error")
+				fmt.Println(err)
+				return
+			}
+			defer resp.Body.Close()
+			body, _ := ioutil.ReadAll(resp.Body)
+			//Checks response from node
+			if resp.StatusCode == 200 {
+				fmt.Println("Successfully wrote to node. Response:", string(body))
+			} else {
+				fmt.Println("Failed to write to node. Reason:", string(body))
 			}
 
 		}
@@ -215,7 +224,7 @@ func (n *Node) TransferHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (n *Node) ReadHandler(w http.ResponseWriter, r *http.Request) {
-	log.Printf("[NodeServer] Received Read Request from RingServer")
+	log.Print("[NodeServer] Received Read Request from RingServer")
 
 	courseIdArray, ok := r.URL.Query()["courseid"]
 	keyHashArray, ok := r.URL.Query()["keyhash"]
@@ -282,13 +291,18 @@ func (n *Node) ReadHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (n *Node) WriteHandler(w http.ResponseWriter, r *http.Request) {
-	log.Printf("[NodeServer] Received Write Request from RingServer")
+	log.Print("[NodeServer] Received Write Request from RingServer")
 	body, _ := ioutil.ReadAll(r.Body)
 	var message lib.Message
 	json.Unmarshal(body, &message)
 	fmt.Println(message)
 	filename := fmt.Sprintf("./node%d/%s", n.Id, message.Hash)
 	dataToWrite := message.CourseId + " " + message.Count
+
+	if message.Replica {
+		print("THIS IS REPLICATED DATA. IGNORE FIRST")
+		return
+	}
 
 	if _, err := os.Stat(filename); err == nil {
 		fmt.Printf("File already exists, proceeding to update file... \n")
@@ -347,7 +361,7 @@ func (n *Node) WriteHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (n *Node) LoadRepHandler(w http.ResponseWriter, r *http.Request) {
-	log.Printf("[NodeServer] Received Request from RingServer to Reload Replica")
+	log.Print("[NodeServer] Received Request from RingServer to Reload Replica")
 
 	body, _ := ioutil.ReadAll(r.Body)
 	var nodeData lib.NodeData
