@@ -80,7 +80,7 @@ func (n *Node) addNodeToRing() {
 		return
 	} else {
 		// Buffer time to allow receiving of supposed data before receiving replica
-		time.Sleep(time.Second * 5)
+		time.Sleep(time.Second * 2)
 		fmt.Printf("Requesting predecessor %s:%s for replica\n", predecessorIP, predecessorPort)
 		go lib.RequestTransfer(n.Ip, n.Port, predecessorIP, predecessorPort, -1, true)
 	}
@@ -128,6 +128,13 @@ func (n *Node) TransferHandler(w http.ResponseWriter, r *http.Request) {
 		n.SuccessorPort = trfMessage.Port
 	} else {
 		fmt.Print("[NodeServer] Received Transfer Request for Data")
+
+		// New node added, transfer all its data and delete its replica (so that it can re-request for the latest replica)
+		folderName := fmt.Sprintf("./node%d/replica/", n.Id)
+		err := os.RemoveAll(folderName)
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
 
 	foldername := fmt.Sprintf("./node%d/", n.Id)
@@ -232,20 +239,24 @@ func (n *Node) TransferHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Inform successor to refresh its replication set because you have deleted some of your data
-	// nodeData := lib.NodeData{Id: n.Id, Ip: n.Ip, Port: n.Port, Hash: "", PredecessorIP: "", PredecessorPort: ""}
-	// requestBody, _ := json.Marshal(nodeData)
-	// postURL := fmt.Sprintf("http://%s:%s/loadReplica", n.SuccessorIP, n.SuccessorPort)
-	// resp, err := http.Post(postURL, "application/json", bytes.NewReader(requestBody))
-	// if err != nil {
-	// 	fmt.Println(err)
-	// 	return
-	// }
-	// defer resp.Body.Close()
+	if !trfMessage.Replica {
+		// Inform successor to refresh its replication set because you have deleted some of your data
+		time.Sleep(time.Second * 5)
+		nodeData := lib.NodeData{Id: n.Id, Ip: n.Ip, Port: n.Port, Hash: "", PredecessorIP: "", PredecessorPort: ""}
+		requestBody, _ := json.Marshal(nodeData)
+		postURL := fmt.Sprintf("http://%s:%s/loadReplica", n.SuccessorIP, n.SuccessorPort)
+		resp, err := http.Post(postURL, "application/json", bytes.NewReader(requestBody))
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		defer resp.Body.Close()
 
-	// if resp.StatusCode == 200 {
-	// 	fmt.Println("Great!")
-	// }
+		if resp.StatusCode == 200 {
+			fmt.Println("Requested for Replica Refresh!")
+		}
+
+	}
 
 	fmt.Println("Successfully updated new node!")
 	w.WriteHeader(http.StatusOK)
@@ -414,7 +425,13 @@ func (n *Node) LoadRepHandler(w http.ResponseWriter, r *http.Request) {
 	var nodeData lib.NodeData
 	json.Unmarshal(body, &nodeData)
 
+	print("REQUEST DATA FROM")
+	print(n.Port)
+	print("TO")
+	print(nodeData.Port)
+	print("TO BE REPLICA")
 	go lib.RequestTransfer(n.Ip, n.Port, nodeData.Ip, nodeData.Port, -1, true)
+
 }
 
 func main() {
