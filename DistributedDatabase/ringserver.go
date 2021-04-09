@@ -159,7 +159,6 @@ func (ringServer *RingServer) ReadFromNode(courseId string) string {
 	}
 }
 
-// TODO: Change to filename=key, data={courseID:count}
 func (ringServer RingServer) WriteToNodeHandler(w http.ResponseWriter, r *http.Request) {
 	log.Printf("[RingServer] Received Write Request from Frontend")
 	body, _ := ioutil.ReadAll(r.Body)
@@ -179,7 +178,7 @@ func (ringServer RingServer) WriteToNodeHandler(w http.ResponseWriter, r *http.R
 		return
 	}
 	nodeData, keyHash := ringServer.AllocateKey(courseId)
-	message2 := lib.Message{lib.Put, courseId, count, keyHash}
+	message2 := lib.Message{Type: lib.Put, CourseId: courseId, Count: count, Hash: keyHash, Replica: false}
 	requestBody, _ := json.Marshal(message2)
 	postURL := fmt.Sprintf("http://%s:%s/write", nodeData.Ip, nodeData.Port)
 	resp, err := http.Post(postURL, "application/json", bytes.NewReader(requestBody))
@@ -206,6 +205,7 @@ func (ringServer RingServer) WriteToNodeHandler(w http.ResponseWriter, r *http.R
 	}
 }
 
+// [KIV] Similar to WriteToNodeHandler (probably can use this function inside so less duplicates)
 func (ringServer *RingServer) WriteToNode(courseId string, count string) {
 	fmt.Println(ringServer.Ring.RingNodeDataMap)
 	countInt, err := strconv.Atoi(count)
@@ -218,7 +218,7 @@ func (ringServer *RingServer) WriteToNode(courseId string, count string) {
 		return
 	}
 	nodeData, keyHash := ringServer.AllocateKey(courseId)
-	message := lib.Message{lib.Put, courseId, count, keyHash}
+	message := lib.Message{Type: lib.Put, CourseId: courseId, Count: count, Hash: keyHash, Replica: false}
 	requestBody, _ := json.Marshal(message)
 	postURL := fmt.Sprintf("http://%s:%s/write", nodeData.Ip, nodeData.Port)
 	resp, err := http.Post(postURL, "application/json", bytes.NewReader(requestBody))
@@ -253,6 +253,8 @@ func (ringServer *RingServer) AddNodeHandler(w http.ResponseWriter, r *http.Requ
 	log.Printf("[RingServer] Receiving Registration Request from a Node")
 	body, _ := ioutil.ReadAll(r.Body)
 	var nodeData lib.NodeData
+	nextNode := -1
+	prevNode := -1
 	json.Unmarshal(body, &nodeData)
 	ringNodeDataMap := ringServer.Ring.RingNodeDataMap
 
@@ -280,23 +282,57 @@ func (ringServer *RingServer) AddNodeHandler(w http.ResponseWriter, r *http.Requ
 	ringServer.Ring.MaxID += 1
 	ringNodeDataMap[randomKey] = nodeData
 
+	//check where the node falls in the ring and send the transfer data back
+	keys := make([]int, len(ringNodeDataMap))
+	i := 0
+	for k := range ringNodeDataMap {
+		keys[i] = k
+		i++
+	}
+	sort.Ints(keys)
+
+	maxKey := keys[len(keys)-1]
+	minKey := keys[0]
+	index := -1
+
+	if len(keys) > 1 {
+		for idx, key := range keys {
+			if randomKey < key {
+				nextNode = key
+				index = idx
+				break
+			} else if randomKey == maxKey {
+				nextNode = minKey
+				index = idx
+				break
+			}
+		}
+	}
+
+	if ((index - 2) % len(keys)) < 0 {
+		prevNode = keys[len(keys)+(index-2)%len(keys)]
+		print("HEY")
+	} else {
+		prevNode = keys[(index-2)%len(keys)]
+	}
+
+	// TODO: Currently only sending information of 1 previous node, need to broadcast to all affected node the change of replicas
+	fmt.Printf("Previous node is at %s:%s\n", ringNodeDataMap[prevNode].Ip, ringNodeDataMap[prevNode].Port)
+	nodeData.PredecessorIP = ringNodeDataMap[prevNode].Ip
+	nodeData.PredecessorPort = ringNodeDataMap[prevNode].Port
+	nodeData.SuccessorIP = ringNodeDataMap[nextNode].Ip
+	nodeData.SuccessorPort = ringNodeDataMap[nextNode].Port
+	nodeData.Hash = strconv.Itoa(randomKey)
 	responseBody, _ := json.Marshal(nodeData)
 	w.WriteHeader(http.StatusOK)
 	w.Write(responseBody)
 
-	//---------------------- uncomment block below to just test the hashing function----------------//
-	// var CourseID string
-	// CourseID = "50005"
-	// nodeURL := ringServer.AllocateKey(CourseID)
-	// fmt.Println(nodeURL)
+	fmt.Println(ringNodeDataMap)
 
-	// var CourseIDTwo string
-	// CourseIDTwo = "500115"
-	// nodeURL2 := ringServer.AllocateKey(CourseIDTwo)
-	// fmt.Println(nodeURL2)
-	//---------------------- uncomment block above to just test the hashing function----------------//
-
-	//fmt.Fprintf(w, "Successlly added node to ring! ")
+	// Request transfer to data from successor and informs that it is the predecessor
+	if nextNode != -1 {
+		go lib.RequestTransfer(ringNodeDataMap[randomKey].Ip, ringNodeDataMap[randomKey].Port, ringNodeDataMap[nextNode].Ip, ringNodeDataMap[nextNode].Port, randomKey, false)
+	}
 
 }
 

@@ -6,9 +6,14 @@ type Ring struct {
 }
 
 type NodeData struct {
-	Id   int
-	Ip   string
-	Port string
+	Id              int
+	Ip              string
+	Port            string
+	Hash            string
+	PredecessorIP   string
+	PredecessorPort string
+	SuccessorIP     string
+	SuccessorPort   string
 }
 
 type Message struct {
@@ -16,6 +21,14 @@ type Message struct {
 	CourseId string
 	Count    string
 	Hash     string
+	Replica  bool
+}
+
+type TransferMessage struct {
+	Ip      string
+	Port    string
+	Hash    string
+	Replica bool
 }
 
 type MessageType int
