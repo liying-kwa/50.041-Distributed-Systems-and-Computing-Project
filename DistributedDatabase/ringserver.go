@@ -199,6 +199,7 @@ func (ringServer RingServer) WriteToNodeHandler(w http.ResponseWriter, r *http.R
 	}
 }
 
+// [KIV] Similar to WriteToNodeHandler (probably can use this function inside so less duplicates)
 func (ringServer *RingServer) WriteToNode(courseId string, count string) {
 	fmt.Println(ringServer.Ring.RingNodeDataMap)
 	countInt, err := strconv.Atoi(count)
@@ -313,6 +314,8 @@ func (ringServer *RingServer) AddNodeHandler(w http.ResponseWriter, r *http.Requ
 	fmt.Printf("Previous node is at %s:%s\n", ringNodeDataMap[prevNode].Ip, ringNodeDataMap[prevNode].Port)
 	nodeData.PredecessorIP = ringNodeDataMap[prevNode].Ip
 	nodeData.PredecessorPort = ringNodeDataMap[prevNode].Port
+	nodeData.SuccessorIP = ringNodeDataMap[nextNode].Ip
+	nodeData.SuccessorPort = ringNodeDataMap[nextNode].Port
 	nodeData.Hash = strconv.Itoa(randomKey)
 	responseBody, _ := json.Marshal(nodeData)
 	w.WriteHeader(http.StatusOK)
@@ -325,31 +328,6 @@ func (ringServer *RingServer) AddNodeHandler(w http.ResponseWriter, r *http.Requ
 		go lib.RequestTransfer(ringNodeDataMap[randomKey].Ip, ringNodeDataMap[randomKey].Port, ringNodeDataMap[nextNode].Ip, ringNodeDataMap[nextNode].Port, randomKey, false)
 	}
 
-}
-
-// TEMP: To merge with add Node
-func (ringServer *RingServer) sendReplicate() {
-
-	for _, nd := range ringServer.Ring.RingNodeDataMap {
-		nodeData := nd
-		fmt.Println(nodeData)
-
-		requestBody, _ := json.Marshal(nodeData)
-		// TEMP: Hard Code
-		postURL := fmt.Sprintf("http://%s:%s/loadReplica", "192.168.56.1", "5003")
-		resp, err := http.Post(postURL, "application/json", bytes.NewReader(requestBody))
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-		defer resp.Body.Close()
-
-		if resp.StatusCode == 200 {
-			fmt.Println("Great!")
-		}
-
-		break
-	}
 }
 
 func (ringServer *RingServer) RemoveNodeHandler(w http.ResponseWriter, r *http.Request) {
@@ -438,10 +416,6 @@ func main() {
 			courseId := tokens[1]
 			count := tokens[2]
 			theRingServer.WriteToNode(courseId, count)
-
-		// TEMP: To test replicate API call
-		case "rehash":
-			theRingServer.sendReplicate()
 
 		default:
 			fmt.Println("Unknown command. Use 'help' to see available commands.")

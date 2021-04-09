@@ -25,8 +25,9 @@ type Node struct {
 	ConnectedToRing bool
 	RingServerIp    string
 	RingServerPort  string
-	PredecessorIP   string
-	PredecessorPort string
+	// For replication during writes
+	SuccessorIP   string
+	SuccessorPort string
 }
 
 func newNode(id int, portNo string) *Node {
@@ -46,14 +47,20 @@ func (n *Node) addNodeToRing() {
 	}
 	defer resp.Body.Close()
 	responseBody, _ := ioutil.ReadAll(resp.Body)
+	predecessorIP := ""
+	predecessorPort := ""
 	if resp.StatusCode == 200 {
 		var nodeData2 lib.NodeData
 		json.Unmarshal(responseBody, &nodeData2)
 		n.Id = nodeData2.Id
 		n.Hash = nodeData2.Hash
 		n.ConnectedToRing = true
-		n.PredecessorIP = nodeData2.PredecessorIP
-		n.PredecessorPort = nodeData2.PredecessorPort
+		// So that it can send replicated data upon write requests
+		n.SuccessorIP = nodeData2.SuccessorIP
+		n.SuccessorPort = nodeData2.SuccessorPort
+		// To request replicas
+		predecessorIP = nodeData2.PredecessorIP
+		predecessorPort = nodeData2.PredecessorPort
 		fmt.Println(nodeData2)
 		go n.listenToRing(n.Port)
 
@@ -68,14 +75,14 @@ func (n *Node) addNodeToRing() {
 		fmt.Println("Failed to register. Response:", string(responseBody))
 	}
 
-	// Request for replica
-	if n.Ip == n.PredecessorIP && n.Port == n.PredecessorPort {
+	// Request for replica (when more than 1 node in ring)
+	if n.Ip == predecessorIP && n.Port == predecessorPort {
 		return
 	} else {
-		time.Sleep(time.Second * 2)
-		fmt.Printf("Requesting predecessor %s:%s for replica\n", n.PredecessorIP, n.PredecessorPort)
 		// Buffer time to allow receiving of supposed data before receiving replica
-		go lib.RequestTransfer(n.Ip, n.Port, n.PredecessorIP, n.PredecessorPort, -1, true)
+		time.Sleep(time.Second * 5)
+		fmt.Printf("Requesting predecessor %s:%s for replica\n", predecessorIP, predecessorPort)
+		go lib.RequestTransfer(n.Ip, n.Port, predecessorIP, predecessorPort, -1, true)
 	}
 	// So that the command line can print correctly
 	time.Sleep(time.Second)
@@ -116,9 +123,9 @@ func (n *Node) TransferHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Printf("Transfer Message: %v\n", trfMessage)
 
 	if trfMessage.Replica {
-		fmt.Print("[NodeServer] Received Transfer Request for Replica")
-		n.PredecessorIP = trfMessage.Ip
-		n.PredecessorPort = trfMessage.Port
+		fmt.Print("[NodeServer] Received Transfer Request for data to be replicated")
+		n.SuccessorIP = trfMessage.Ip
+		n.SuccessorPort = trfMessage.Port
 	} else {
 		fmt.Print("[NodeServer] Received Transfer Request for Data")
 	}
@@ -209,27 +216,12 @@ func (n *Node) TransferHandler(w http.ResponseWriter, r *http.Request) {
 			} else {
 				message = lib.Message{Type: lib.Put, CourseId: courseId, Count: count, Hash: item.Name(), Replica: false}
 			}
-			fmt.Printf("message to be sent over: \n")
-			requestBody, _ := json.Marshal(message)
-			postURL := fmt.Sprintf("http://%s:%s/write", trfMessage.Ip, trfMessage.Port)
-			resp, err := http.Post(postURL, "application/json", bytes.NewReader(requestBody))
-			if err != nil {
-				fmt.Printf("there is an error")
-				fmt.Println(err)
-				return
-			}
-			defer resp.Body.Close()
-			body, _ := ioutil.ReadAll(resp.Body)
-			// Checks response from node
-			if resp.StatusCode == 200 {
-				fmt.Println("Successfully wrote to node. Response:", string(body))
-			} else {
-				fmt.Println("Failed to write to node. Reason:", string(body))
-			}
 
+			// Not implemented as async because you want to be sure the message is sent before deleting it
+			lib.WriteMessage(message, trfMessage.Ip, trfMessage.Port)
 		}
-		// Delete the file
-		if !trfMessage.Replica && (newNodeKey > ownHash && (newNodeKey >= fileNameKey && fileNameKey > ownHash)) || (newNodeKey < ownHash && (newNodeKey >= fileNameKey || fileNameKey > ownHash)) {
+		// Delete the file if not replica
+		if !trfMessage.Replica && ((newNodeKey > ownHash && (newNodeKey >= fileNameKey && fileNameKey > ownHash)) || (newNodeKey < ownHash && (newNodeKey >= fileNameKey || fileNameKey > ownHash))) {
 			fmt.Printf("[DELETING FILE] %s\n", filename)
 			e := os.Remove(filename)
 			if e != nil {
@@ -240,13 +232,24 @@ func (n *Node) TransferHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Inform successor to refresh its replication set because you have deleted some of your data
+	// nodeData := lib.NodeData{Id: n.Id, Ip: n.Ip, Port: n.Port, Hash: "", PredecessorIP: "", PredecessorPort: ""}
+	// requestBody, _ := json.Marshal(nodeData)
+	// postURL := fmt.Sprintf("http://%s:%s/loadReplica", n.SuccessorIP, n.SuccessorPort)
+	// resp, err := http.Post(postURL, "application/json", bytes.NewReader(requestBody))
+	// if err != nil {
+	// 	fmt.Println(err)
+	// 	return
+	// }
+	// defer resp.Body.Close()
+
+	// if resp.StatusCode == 200 {
+	// 	fmt.Println("Great!")
+	// }
+
 	fmt.Println("Successfully updated new node!")
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("200 OK -- Successfully wrote to node!"))
-
-	if trfMessage.Replica {
-		// TODO: Tell previous node to trigger replica
-	}
 }
 
 func (n *Node) ReadHandler(w http.ResponseWriter, r *http.Request) {
@@ -317,7 +320,7 @@ func (n *Node) ReadHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (n *Node) WriteHandler(w http.ResponseWriter, r *http.Request) {
-	log.Print("[NodeServer] Received Write Request from RingServer")
+	log.Print("[NodeServer] Received Write Request")
 	body, _ := ioutil.ReadAll(r.Body)
 	var message lib.Message
 	json.Unmarshal(body, &message)
@@ -334,6 +337,12 @@ func (n *Node) WriteHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		filename = fmt.Sprintf("./node%d/replica/%s", n.Id, message.Hash)
+	} else {
+		// Send to successors to replicate
+		print("FORWARDING MESSAGE TO SUCCESSOR TO REPLICATE")
+		print(n.SuccessorIP, n.SuccessorPort)
+		message.Replica = true
+		go lib.WriteMessage(message, n.SuccessorIP, n.SuccessorPort)
 	}
 
 	if _, err := os.Stat(filename); err == nil {
@@ -392,20 +401,22 @@ func (n *Node) WriteHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (n *Node) LoadRepHandler(w http.ResponseWriter, r *http.Request) {
-	log.Print("[NodeServer] Received Request from RingServer to Reload Replica")
+	log.Print("[NodeServer] Received Request to Reload Replica")
+
+	// Delete all its replica before requesting for replica
+	folderName := fmt.Sprintf("./node%d/replica/", n.Id)
+	err := os.RemoveAll(folderName)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	body, _ := ioutil.ReadAll(r.Body)
 	var nodeData lib.NodeData
 	json.Unmarshal(body, &nodeData)
 
-	if nodeData.Port != "" {
-
-		fmt.Println(nodeData.Ip, nodeData.Port)
-		responseBody, _ := json.Marshal(nodeData)
-		w.WriteHeader(http.StatusOK)
-		w.Write(responseBody)
-	}
+	go lib.RequestTransfer(n.Ip, n.Port, nodeData.Ip, nodeData.Port, -1, true)
 }
+
 func main() {
 
 	thisNode := newNode(0, "-1")

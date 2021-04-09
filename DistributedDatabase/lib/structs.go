@@ -12,6 +12,8 @@ type NodeData struct {
 	Hash            string
 	PredecessorIP   string
 	PredecessorPort string
+	SuccessorIP     string
+	SuccessorPort   string
 }
 
 type Message struct {

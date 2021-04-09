@@ -70,7 +70,7 @@ func GetStudent(c *fiber.Ctx) error {
 	id := c.Params("id")
 	node := AllocateKey(id, localRing)
 	fmt.Printf("Received GET request from Frontend, forwarding request to Node %d at %s:%s\n", node.Id, node.Ip, node.Port)
-	resp := lib.SendMessage("Testing", node)
+	resp := lib.WriteMessage("Testing", node)
 
 	// TODO: Remove temporary SQL DB below
 	db := database.DBConn
