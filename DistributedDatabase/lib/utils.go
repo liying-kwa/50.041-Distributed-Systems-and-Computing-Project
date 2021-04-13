@@ -93,15 +93,53 @@ func RequestTransfer(requestorIp string, requestorPort string, destinationIp str
 	postURL := fmt.Sprintf("http://%s:%s/transfer", destinationIp, destinationPort)
 	resp, err := http.Post(postURL, "application/json", bytes.NewReader(requestBody))
 	if err != nil {
-		fmt.Println(err)
-		return
+	  fmt.Println(err)
+	  return
 	}
 	defer resp.Body.Close()
 	body2, _ := ioutil.ReadAll(resp.Body)
-
+  
 	if resp.StatusCode == 200 {
-		fmt.Println("Told next node about new node. Response:", string(body2))
+	  fmt.Println("Told next node about new node. Response:", string(body2))
 	} else {
-		fmt.Println("Failed to tell next node about new node. Reason:", string(body2))
+	  fmt.Println("Failed to tell next node about new node. Reason:", string(body2))
 	}
-}
+  }
+
+// func RequestTransfer(requestorIp string, requestorPort string, destinationIp string, destinationPort string, destinationIp2 string, destinationPort2 string, hash int, replica bool) {
+// 	trfMessage := TransferMessage{requestorIp, requestorPort, strconv.Itoa(hash), replica}
+// 	requestBody, _ := json.Marshal(trfMessage)
+// 	postURL := fmt.Sprintf("http://%s:%s/transfer", destinationIp, destinationPort)
+// 	resp, err := http.Post(postURL, "application/json", bytes.NewReader(requestBody))
+// 	if err != nil {
+// 		fmt.Println(err)
+// 		return
+// 	}
+// 	defer resp.Body.Close()
+// 	body2, _ := ioutil.ReadAll(resp.Body)
+
+// 	if resp.StatusCode == 200 {
+// 		fmt.Println("Told next node about new node. Response:", string(body2))
+// 	} else {
+// 		fmt.Println("Failed to tell next node about new node. Reason:", string(body2))
+// 	}
+// 	if destinationIp2 != "" {
+// 		postURL2 := fmt.Sprintf("http://%s:%s/transfer", destinationIp2, destinationPort2)
+// 		resp2, err2 := http.Post(postURL2, "application/json", bytes.NewReader(requestBody))
+// 		if err2 != nil {
+// 			fmt.Println(err2)
+// 			return
+// 		}
+// 		defer resp2.Body.Close()
+// 		body2, _ := ioutil.ReadAll(resp2.Body)
+	
+// 		if resp2.StatusCode == 200 {
+// 			fmt.Println("Told next node about new node. Response:", string(body2))
+// 		} else {
+// 			fmt.Println("Failed to tell next node about new node. Reason:", string(body2))
+// 		}
+
+// 	}
+	
+	
+// }

@@ -28,15 +28,17 @@ type Node struct {
 	// For replication during writes
 	SuccessorIP   string
 	SuccessorPort string
+	SuccessorIP2   string
+	SuccessorPort2 string
 }
 
 func newNode(id int, portNo string) *Node {
 	ip, _ := lib.ExternalIP()
-	return &Node{id, ip, portNo, "", false, lib.RINGSERVER_IP, lib.RINGSERVER_NODES_PORT, "", ""}
+	return &Node{id, ip, portNo, "", false, lib.RINGSERVER_IP, lib.RINGSERVER_NODES_PORT, "", "", "", ""}
 }
 
 func (n *Node) addNodeToRing() {
-	nodeData := lib.NodeData{Id: n.Id, Ip: n.Ip, Port: n.Port, Hash: "", PredecessorIP: "", PredecessorPort: ""}
+	nodeData := lib.NodeData{Id: n.Id, Ip: n.Ip, Port: n.Port, Hash: "", PredecessorIP: "", PredecessorPort: "", PredecessorIP2: "", PredecessorPort2: ""}
 	requestBody, _ := json.Marshal(nodeData)
 	// Send to ring server
 	postURL := fmt.Sprintf("http://%s:%s/add-node", n.RingServerIp, n.RingServerPort)
@@ -49,6 +51,8 @@ func (n *Node) addNodeToRing() {
 	responseBody, _ := ioutil.ReadAll(resp.Body)
 	predecessorIP := ""
 	predecessorPort := ""
+	predecessorIP2 := ""
+	predecessorPort2 := ""
 	if resp.StatusCode == 200 {
 		var nodeData2 lib.NodeData
 		json.Unmarshal(responseBody, &nodeData2)
@@ -61,6 +65,8 @@ func (n *Node) addNodeToRing() {
 		// To request replicas
 		predecessorIP = nodeData2.PredecessorIP
 		predecessorPort = nodeData2.PredecessorPort
+		predecessorIP2 = nodeData2.PredecessorIP2
+		predecessorPort2 = nodeData2.PredecessorPort2
 		fmt.Println(nodeData2)
 		go n.listenToRing(n.Port)
 
@@ -76,6 +82,11 @@ func (n *Node) addNodeToRing() {
 	}
 
 	// Request for replica (when more than 1 node in ring)
+	fmt.Printf("current ip %s\n", n.Ip)
+	fmt.Printf("predcessor IP: %s\n", predecessorIP)
+	fmt.Printf("current port: %s\n", n.Port)
+	fmt.Printf("predcessor port: %s\n", predecessorPort)
+
 	if n.Ip == predecessorIP && n.Port == predecessorPort {
 		return
 	} else {
@@ -83,6 +94,7 @@ func (n *Node) addNodeToRing() {
 		time.Sleep(time.Second * 2)
 		fmt.Printf("Requesting predecessor %s:%s for replica\n", predecessorIP, predecessorPort)
 		go lib.RequestTransfer(n.Ip, n.Port, predecessorIP, predecessorPort, -1, true)
+		go lib.RequestTransfer(n.Ip, n.Port, predecessorIP2, predecessorPort2, -1, true)
 	}
 	// So that the command line can print correctly
 	time.Sleep(time.Second)
@@ -242,7 +254,9 @@ func (n *Node) TransferHandler(w http.ResponseWriter, r *http.Request) {
 	if !trfMessage.Replica {
 		// Inform successor to refresh its replication set because you have deleted some of your data
 		time.Sleep(time.Second * 5)
+		// nodeData := lib.NodeData{Id: n.Id, Ip: n.Ip, Port: n.Port, Hash: "", PredecessorIP: "", PredecessorPort: "", PredecessorIP2: "", PredecessorPort2: ""}
 		nodeData := lib.NodeData{Id: n.Id, Ip: n.Ip, Port: n.Port, Hash: "", PredecessorIP: "", PredecessorPort: ""}
+
 		requestBody, _ := json.Marshal(nodeData)
 		postURL := fmt.Sprintf("http://%s:%s/loadReplica", n.SuccessorIP, n.SuccessorPort)
 		resp, err := http.Post(postURL, "application/json", bytes.NewReader(requestBody))
@@ -255,6 +269,18 @@ func (n *Node) TransferHandler(w http.ResponseWriter, r *http.Request) {
 		if resp.StatusCode == 200 {
 			fmt.Println("Requested for Replica Refresh!")
 		}
+
+		// postURL2 := fmt.Sprintf("http://%s:%s/loadReplica", n.SuccessorIP2, n.SuccessorPort2)
+		// resp2, err2 := http.Post(postURL2, "application/json", bytes.NewReader(requestBody))
+		// if err2 != nil {
+		// 	fmt.Println(err2)
+		// 	return
+		// }
+		// defer resp.Body.Close()
+
+		// if resp2.StatusCode == 200 {
+		// 	fmt.Println("Requested for Replica Refresh!")
+		// }
 
 	}
 
