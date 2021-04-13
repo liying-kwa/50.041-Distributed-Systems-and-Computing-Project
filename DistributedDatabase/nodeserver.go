@@ -129,6 +129,7 @@ func (n *Node) listenToRing(portNo string) {
 }
 
 func (n *Node) TransferHandler(w http.ResponseWriter, r *http.Request) {
+	fmt.Println("TRANSFER REQUESTED FROM %s", n.Id)
 	body, _ := ioutil.ReadAll(r.Body)
 	var trfMessage lib.TransferMessage
 	json.Unmarshal(body, &trfMessage)
@@ -290,6 +291,8 @@ func (n *Node) TransferHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (n *Node) ReadHandler(w http.ResponseWriter, r *http.Request) {
+	fmt.Println("READ ")
+
 	log.Print("[NodeServer] Received Read Request from RingServer")
 
 	courseIdArray, ok := r.URL.Query()["courseid"]
@@ -357,6 +360,7 @@ func (n *Node) ReadHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (n *Node) WriteHandler(w http.ResponseWriter, r *http.Request) {
+	fmt.Printf("WRITE")
 	log.Print("[NodeServer] Received Write Request")
 	body, _ := ioutil.ReadAll(r.Body)
 	var message lib.Message
@@ -438,6 +442,7 @@ func (n *Node) WriteHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (n *Node) LoadRepHandler(w http.ResponseWriter, r *http.Request) {
+	fmt.Println("LOADREPHANDLER")
 	log.Print("[NodeServer] Received Request to Reload Replica")
 
 	// Delete all its replica before requesting for replica
