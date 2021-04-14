@@ -62,6 +62,10 @@ func (n *Node) addNodeToRing() {
 		// So that it can send replicated data upon write requests
 		n.SuccessorIP = nodeData2.SuccessorIP
 		n.SuccessorPort = nodeData2.SuccessorPort
+		//fmt.Println("WHY ISIT LIKE THIS %s", n.SuccessorPort)
+		n.SuccessorIP2 = nodeData2.SuccessorIP2
+		//fmt.Println("WHYYY??? %s", n.SuccessorPort2)
+		n.SuccessorPort2 = nodeData2.SuccessorPort2
 		// To request replicas
 		predecessorIP = nodeData2.PredecessorIP
 		predecessorPort = nodeData2.PredecessorPort
@@ -384,6 +388,8 @@ func (n *Node) WriteHandler(w http.ResponseWriter, r *http.Request) {
 	} else {
 		// Send to successors to replicate
 		print("FORWARDING MESSAGE TO SUCCESSOR TO REPLICATE")
+		fmt.Println("%d", n.Id)
+		print(n)
 		print(n.SuccessorIP, n.SuccessorPort)
 		print(n.SuccessorIP2, n.SuccessorPort2)
 		message.Replica = true
