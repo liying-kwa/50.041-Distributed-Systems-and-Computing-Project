@@ -87,8 +87,8 @@ func WriteMessage(message Message, destIP string, destPort string) {
 	}
 }
 
-func RequestTransfer(requestorIp string, requestorPort string, destinationIp string, destinationPort string, hash int, replica bool) {
-	trfMessage := TransferMessage{requestorIp, requestorPort, strconv.Itoa(hash), replica}
+func RequestTransfer(requestorIp string, requestorPort string, destinationIp string, destinationPort string, hash int, replica bool, delete bool) {
+	trfMessage := TransferMessage{requestorIp, requestorPort, strconv.Itoa(hash), replica, delete}
 	requestBody, _ := json.Marshal(trfMessage)
 	postURL := fmt.Sprintf("http://%s:%s/transfer", destinationIp, destinationPort)
 	resp, err := http.Post(postURL, "application/json", bytes.NewReader(requestBody))

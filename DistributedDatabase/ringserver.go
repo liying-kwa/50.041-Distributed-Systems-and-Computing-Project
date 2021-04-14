@@ -381,7 +381,7 @@ func (ringServer *RingServer) AddNodeHandler(w http.ResponseWriter, r *http.Requ
 	if len(keys) != 1 {
 		fmt.Println("hello")
 		// go lib.RequestTransfer(ringNodeDataMap[randomKey].Ip, ringNodeDataMap[randomKey].Port, ringNodeDataMap[nextNode].Ip, ringNodeDataMap[nextNode].Port, ringNodeDataMap[nextnextNode].Ip, ringNodeDataMap[nextnextNode].Port, randomKey, false)
-		go lib.RequestTransfer(ringNodeDataMap[randomKey].Ip, ringNodeDataMap[randomKey].Port, ringNodeDataMap[nextNode].Ip, ringNodeDataMap[nextNode].Port, randomKey, false)
+		go lib.RequestTransfer(ringNodeDataMap[randomKey].Ip, ringNodeDataMap[randomKey].Port, ringNodeDataMap[nextNode].Ip, ringNodeDataMap[nextNode].Port, randomKey, false, false)
 
 	}
 

@@ -93,8 +93,10 @@ func (n *Node) addNodeToRing() {
 		// Buffer time to allow receiving of supposed data before receiving replica
 		time.Sleep(time.Second * 2)
 		fmt.Printf("Requesting predecessor %s:%s for replica\n", predecessorIP, predecessorPort)
-		go lib.RequestTransfer(n.Ip, n.Port, predecessorIP, predecessorPort, -1, true)
-		go lib.RequestTransfer(n.Ip, n.Port, predecessorIP2, predecessorPort2, -1, true)
+		// go lib.RequestTransfer(n.Ip, n.Port, predecessorIP, predecessorPort, -1, true)
+		// go lib.RequestTransfer(n.Ip, n.Port, predecessorIP2, predecessorPort2, -1, true)
+		lib.RequestTransfer(n.Ip, n.Port, predecessorIP, predecessorPort, -1, true, true)
+		lib.RequestTransfer(n.Ip, n.Port, predecessorIP2, predecessorPort2, -1, true, false)
 	}
 	// So that the command line can print correctly
 	time.Sleep(time.Second)
@@ -139,16 +141,17 @@ func (n *Node) TransferHandler(w http.ResponseWriter, r *http.Request) {
 		fmt.Print("[NodeServer] Received Transfer Request for data to be replicated")
 		n.SuccessorIP = trfMessage.Ip
 		n.SuccessorPort = trfMessage.Port
-	} else {
-		fmt.Print("[NodeServer] Received Transfer Request for Data")
+	} 
+	// else {
+	// 	fmt.Print("[NodeServer] Received Transfer Request for Data")
 
-		// New node added, transfer all its data and delete its replica (so that it can re-request for the latest replica)
-		folderName := fmt.Sprintf("./node%d/replica/", n.Id)
-		err := os.RemoveAll(folderName)
-		if err != nil {
-			log.Fatal(err)
-		}
-	}
+	// 	// New node added, transfer all its data and delete its replica (so that it can re-request for the latest replica)
+	// 	folderName := fmt.Sprintf("./node%d/replica/", n.Id)
+	// 	err := os.RemoveAll(folderName)
+	// 	if err != nil {
+	// 		log.Fatal(err)
+	// 	}
+	// }
 
 	foldername := fmt.Sprintf("./node%d/", n.Id)
 	items, _ := ioutil.ReadDir(foldername)
@@ -252,7 +255,7 @@ func (n *Node) TransferHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if !trfMessage.Replica {
+	if !trfMessage.Replica && trfMessage.Delete {
 		// Inform successor to refresh its replication set because you have deleted some of your data
 		time.Sleep(time.Second * 5)
 		// nodeData := lib.NodeData{Id: n.Id, Ip: n.Ip, Port: n.Port, Hash: "", PredecessorIP: "", PredecessorPort: "", PredecessorIP2: "", PredecessorPort2: ""}
@@ -382,8 +385,10 @@ func (n *Node) WriteHandler(w http.ResponseWriter, r *http.Request) {
 		// Send to successors to replicate
 		print("FORWARDING MESSAGE TO SUCCESSOR TO REPLICATE")
 		print(n.SuccessorIP, n.SuccessorPort)
+		print(n.SuccessorIP2, n.SuccessorPort2)
 		message.Replica = true
 		go lib.WriteMessage(message, n.SuccessorIP, n.SuccessorPort)
+		go lib.WriteMessage(message, n.SuccessorIP2, n.SuccessorPort2)
 	}
 
 	if _, err := os.Stat(filename); err == nil {
@@ -446,23 +451,24 @@ func (n *Node) LoadRepHandler(w http.ResponseWriter, r *http.Request) {
 	log.Print("[NodeServer] Received Request to Reload Replica")
 
 	// Delete all its replica before requesting for replica
-	folderName := fmt.Sprintf("./node%d/replica/", n.Id)
-	err := os.RemoveAll(folderName)
-	if err != nil {
-		log.Fatal(err)
-	}
+	// if (n.SuccessorPort2 != "") {
+		folderName := fmt.Sprintf("./node%d/replica/", n.Id)
+		err := os.RemoveAll(folderName)
+		if err != nil {
+			log.Fatal(err)
+		}
 
-	body, _ := ioutil.ReadAll(r.Body)
-	var nodeData lib.NodeData
-	json.Unmarshal(body, &nodeData)
+		body, _ := ioutil.ReadAll(r.Body)
+		var nodeData lib.NodeData
+		json.Unmarshal(body, &nodeData)
 
-	print("REQUEST DATA FROM")
-	print(n.Port)
-	print("TO")
-	print(nodeData.Port)
-	print("TO BE REPLICA")
-	go lib.RequestTransfer(n.Ip, n.Port, nodeData.Ip, nodeData.Port, -1, true)
-
+		print("REQUEST DATA FROM")
+		print(n.Port)
+		print("TO")
+		print(nodeData.Port)
+		print("TO BE REPLICA")
+		go lib.RequestTransfer(n.Ip, n.Port, nodeData.Ip, nodeData.Port, -1, true, false )
+	// }
 }
 
 func main() {

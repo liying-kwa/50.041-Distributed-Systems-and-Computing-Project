@@ -33,6 +33,7 @@ type TransferMessage struct {
 	Port    string
 	Hash    string
 	Replica bool
+	Delete bool
 }
 
 type MessageType int
