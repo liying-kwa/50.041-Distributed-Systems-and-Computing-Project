@@ -9,7 +9,6 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
-	"strconv"
 )
 
 type JsonRequest struct {
@@ -87,7 +86,7 @@ func WriteMessage(message Message, destIP string, destPort string) {
 	}
 }
 
-func RequestTransfer(requestorIp string, requestorPort string, destinationIp string, destinationPort string, hash int, replica bool) {
+/* func RequestTransfer(requestorIp string, requestorPort string, destinationIp string, destinationPort string, hash int, replica bool) {
 	trfMessage := TransferMessage{requestorIp, requestorPort, strconv.Itoa(hash), replica}
 	requestBody, _ := json.Marshal(trfMessage)
 	postURL := fmt.Sprintf("http://%s:%s/transfer", destinationIp, destinationPort)
@@ -103,5 +102,23 @@ func RequestTransfer(requestorIp string, requestorPort string, destinationIp str
 		fmt.Println("Told next node about new node. Response:", string(body2))
 	} else {
 		fmt.Println("Failed to tell next node about new node. Reason:", string(body2))
+	}
+} */
+
+// Ringserver requests newNode's successor to transfer data to it.
+func RequestData(successorNodeData NodeData, newNodeData NodeData) {
+	requestBody, _ := json.Marshal(newNodeData)
+	postURL := fmt.Sprintf("http://%s:%s/transferdata", successorNodeData.Ip, successorNodeData.Port)
+	resp, err := http.Post(postURL, "application/json", bytes.NewReader(requestBody))
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	defer resp.Body.Close()
+	responseBody, _ := ioutil.ReadAll(resp.Body)
+	if resp.StatusCode == 200 {
+		fmt.Println("Successully told newNode's successor about newNode. Response:", string(responseBody))
+	} else {
+		fmt.Println("Failed to tell newNode's successor about newNode. Reason:", string(responseBody))
 	}
 }

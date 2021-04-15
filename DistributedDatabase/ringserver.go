@@ -252,87 +252,95 @@ func (ringServer RingServer) listenToNodes() {
 func (ringServer *RingServer) AddNodeHandler(w http.ResponseWriter, r *http.Request) {
 	log.Printf("[RingServer] Receiving Registration Request from a Node")
 	body, _ := ioutil.ReadAll(r.Body)
-	var nodeData lib.NodeData
-	nextNode := -1
-	prevNode := -1
-	json.Unmarshal(body, &nodeData)
+	var newNodeData lib.NodeData
+	json.Unmarshal(body, &newNodeData)
 	ringNodeDataMap := ringServer.Ring.RingNodeDataMap
 
 	// Check if node is already in ring structure
 	for _, nd := range ringNodeDataMap {
-		if nd.Ip == nodeData.Ip && nd.Port == nodeData.Port {
-			fmt.Printf("Node %s:%s tries to connect but already registered previously. \n", nodeData.Ip, nodeData.Port)
+		if nd.Ip == newNodeData.Ip && nd.Port == newNodeData.Port {
+			fmt.Printf("Node %s:%s tries to connect but already registered previously. \n", newNodeData.Ip, newNodeData.Port)
 			w.WriteHeader(http.StatusConflict)
 			w.Write([]byte("409 Conflict -- Already registered"))
 			return
 		}
 	}
 
-	// Assign a random (but unique) key to the node and add to ring
-	randomKey := rand.Intn(lib.MAX_KEYS)
-	_, taken := ringNodeDataMap[randomKey]
+	// Assign a random (but unique) key and unique ID to node
+	// Add to ring first, to determine successors and predecessors. Update information abt successors and predecessors later.
+	newNodeKey := rand.Intn(lib.MAX_KEYS)
+	_, taken := ringNodeDataMap[newNodeKey]
 	for taken == true {
-		randomKey = rand.Intn(lib.MAX_KEYS)
-		_, taken = ringNodeDataMap[randomKey]
+		newNodeKey = rand.Intn(lib.MAX_KEYS)
+		_, taken = ringNodeDataMap[newNodeKey]
 	}
-
-	// Assign ID to node and add node to ring
-	fmt.Printf("Adding node %s:%s to the ring... \n", nodeData.Ip, nodeData.Port)
-	nodeData.Id = ringServer.Ring.MaxID + 1
+	newNodeData.Hash = strconv.Itoa(newNodeKey)
+	newNodeData.Id = ringServer.Ring.MaxID + 1
 	ringServer.Ring.MaxID += 1
-	ringNodeDataMap[randomKey] = nodeData
+	fmt.Printf("Adding Node #%d with %s:%s to the ring... \n", newNodeData.Id, newNodeData.Ip, newNodeData.Port)
+	ringNodeDataMap[newNodeKey] = newNodeData
 
-	//check where the node falls in the ring and send the transfer data back
-	keys := make([]int, len(ringNodeDataMap))
-	i := 0
-	for k := range ringNodeDataMap {
-		keys[i] = k
-		i++
+	// Find the node's RF successors and RF predecessors and update newNodeData.
+	// SKIP ALL THIS NONSENSE IF NEWNODE IS THE ONLY ONE IN THE RING. Send newNodeData back to new node
+	if len(ringNodeDataMap) == 1 {
+		responseBody, _ := json.Marshal(newNodeData)
+		w.WriteHeader(http.StatusOK)
+		w.Write(responseBody)
+		return
+	}
+	keys := []int{}
+	for k, _ := range ringNodeDataMap {
+		keys = append(keys, k)
 	}
 	sort.Ints(keys)
-
-	maxKey := keys[len(keys)-1]
-	minKey := keys[0]
-	index := -1
-
-	if len(keys) > 1 {
-		for idx, key := range keys {
-			if randomKey < key {
-				nextNode = key
-				index = idx
-				break
-			} else if randomKey == maxKey {
-				nextNode = minKey
-				index = idx
-				break
-			}
+	newNodeKeyIndex := -1
+	for idx, key := range keys {
+		if key == newNodeKey {
+			newNodeKeyIndex = idx
 		}
 	}
-
-	if ((index - 2) % len(keys)) < 0 {
-		prevNode = keys[len(keys)+(index-2)%len(keys)]
-		print("HEY")
-	} else {
-		prevNode = keys[(index-2)%len(keys)]
+	// Successors
+	successorKeyIndex := newNodeKeyIndex
+	for i := 0; i < lib.REPLICATION_FACTOR-1; i++ {
+		successorKeyIndex += 1
+		successorKeyIndex %= len(keys)
+		if successorKeyIndex == newNodeKeyIndex {
+			continue
+		}
+		successorNodeData := ringNodeDataMap[keys[successorKeyIndex]]
+		newNodeData.Successors = append(newNodeData.Successors, successorNodeData)
+	}
+	// Predecessors
+	predecessorKeyIndex := newNodeKeyIndex
+	for i := 0; i < lib.REPLICATION_FACTOR-1; i++ {
+		predecessorKeyIndex -= 1
+		if predecessorKeyIndex < 0 {
+			predecessorKeyIndex += len(keys)
+		}
+		if predecessorKeyIndex == newNodeKeyIndex {
+			continue
+		}
+		predecessorNodeData := ringNodeDataMap[keys[predecessorKeyIndex]]
+		newNodeData.Predecessors = append(newNodeData.Predecessors, predecessorNodeData)
 	}
 
-	// TODO: Currently only sending information of 1 previous node, need to broadcast to all affected node the change of replicas
-	fmt.Printf("Previous node is at %s:%s\n", ringNodeDataMap[prevNode].Ip, ringNodeDataMap[prevNode].Port)
-	nodeData.PredecessorIP = ringNodeDataMap[prevNode].Ip
-	nodeData.PredecessorPort = ringNodeDataMap[prevNode].Port
-	nodeData.SuccessorIP = ringNodeDataMap[nextNode].Ip
-	nodeData.SuccessorPort = ringNodeDataMap[nextNode].Port
-	nodeData.Hash = strconv.Itoa(randomKey)
-	responseBody, _ := json.Marshal(nodeData)
+	// Edit newNodeData in ringstructure to have the right predecessors and successors. Send newNodeData back to new node.
+	fmt.Printf("Editing Node #%d with %s:%s in the ring... \n", newNodeData.Id, newNodeData.Ip, newNodeData.Port)
+	ringNodeDataMap[newNodeKey] = newNodeData
+	responseBody, _ := json.Marshal(newNodeData)
 	w.WriteHeader(http.StatusOK)
 	w.Write(responseBody)
 
-	fmt.Println(ringNodeDataMap)
+	// IMPORTANT TODO: Check if these are needed!
+	// Update newNode's successors about its changed precedessors
+	// Update newNode's predecessors about its changed successors
 
-	// Request transfer to data from successor and informs that it is the predecessor
-	if nextNode != -1 {
-		go lib.RequestTransfer(ringNodeDataMap[randomKey].Ip, ringNodeDataMap[randomKey].Port, ringNodeDataMap[nextNode].Ip, ringNodeDataMap[nextNode].Port, randomKey, false)
-	}
+	// Tell newNode's immediate successor to transfer data to the newNode
+	immediateSuccessorKeyIndex := newNodeKeyIndex
+	immediateSuccessorKeyIndex += 1
+	immediateSuccessorKeyIndex %= len(keys)
+	immediateSuccessorNodeData := ringNodeDataMap[keys[immediateSuccessorKeyIndex]]
+	go lib.RequestData(immediateSuccessorNodeData, newNodeData)
 
 }
 
@@ -407,7 +415,7 @@ func main() {
 			} else {
 				for key, nd := range theRingServer.Ring.RingNodeDataMap {
 					nodeDataJson, _ := json.Marshal(nd)
-					fmt.Printf("key=%d, %s \n", key, string(nodeDataJson))
+					fmt.Printf("key=%d, %s \n\n", key, string(nodeDataJson))
 				}
 			}
 

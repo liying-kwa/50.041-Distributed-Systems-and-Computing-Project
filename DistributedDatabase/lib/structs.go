@@ -6,14 +6,16 @@ type Ring struct {
 }
 
 type NodeData struct {
-	Id              int
-	Ip              string
-	Port            string
-	Hash            string
-	PredecessorIP   string
-	PredecessorPort string
-	SuccessorIP     string
-	SuccessorPort   string
+	Id           int
+	Ip           string
+	Port         string
+	Hash         string
+	Predecessors []NodeData
+	Successors   []NodeData
+	//PredecessorIP   string
+	//PredecessorPort string
+	//SuccessorIP     string
+	//SuccessorPort   string
 }
 
 type Message struct {
