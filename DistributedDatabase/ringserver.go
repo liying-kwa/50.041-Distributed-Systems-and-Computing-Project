@@ -51,8 +51,7 @@ func HashMD5(text string, max int) int {
 	return output % max
 }
 
-//   function to allocate the given CourseId to a node and return that node's ip:port
-//func (ringServer *RingServer) AllocateKey(key string) string {
+// Function to allocate the given CourseId to a node and return that nodeData and keyHash
 func (ringServer *RingServer) AllocateKey(key string) (lib.NodeData, string) {
 	nodeMap := ringServer.Ring.RingNodeDataMap
 	keyHash := HashMD5(key, lib.MAX_KEYS)
@@ -96,7 +95,6 @@ func (ringServer RingServer) listenToFrontend() {
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%s", ringServer.FrontendPort), nil))
 }
 
-// TODO: Change to filename=key, data={courseID:count}
 func (ringServer RingServer) ReadFromNodeHandler(w http.ResponseWriter, r *http.Request) {
 	log.Printf("[RingServer] Received Read Request from Frontend")
 	courseIdArray, ok := r.URL.Query()["courseid"]
