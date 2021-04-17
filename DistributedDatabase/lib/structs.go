@@ -10,12 +10,18 @@ type NodeData struct {
 	Ip           string
 	Port         string
 	Hash         string
-	Predecessors []NodeData
-	Successors   []NodeData
-	//PredecessorIP   string
-	//PredecessorPort string
-	//SuccessorIP     string
-	//SuccessorPort   string
+	Predecessors map[int]SimpleNodeData
+	Successors   map[int]SimpleNodeData
+	//Predecessors []NodeData
+	//Successors   []NodeData
+}
+
+// NodeData that exclude Predecessors and Successors to prevent infinite recursion
+type SimpleNodeData struct {
+	Id   int
+	Ip   string
+	Port string
+	Hash string
 }
 
 type Message struct {

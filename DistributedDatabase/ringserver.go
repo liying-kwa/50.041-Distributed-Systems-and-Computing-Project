@@ -76,14 +76,10 @@ func (ringServer *RingServer) AllocateKey(key string) (lib.NodeData, string) {
 	sort.Ints(keys)
 	for _, key := range keys {
 		if keyHash <= key {
-			//nodeURL := fmt.Sprintf("%s:%s", nodeMap[key].Ip, nodeMap[key].Port)
-			//return nodeURL
 			return nodeMap[key], strconv.Itoa(keyHash)
 		}
 	}
 
-	//nodeURL := fmt.Sprintf("%s:%s", nodeMap[lowest].Ip, nodeMap[lowest].Port)
-	//return nodeURL
 	return nodeMap[lowest], strconv.Itoa(keyHash)
 }
 
@@ -286,41 +282,10 @@ func (ringServer *RingServer) AddNodeHandler(w http.ResponseWriter, r *http.Requ
 		w.Write(responseBody)
 		return
 	}
-	keys := []int{}
-	for k, _ := range ringNodeDataMap {
-		keys = append(keys, k)
-	}
-	sort.Ints(keys)
-	newNodeKeyIndex := -1
-	for idx, key := range keys {
-		if key == newNodeKey {
-			newNodeKeyIndex = idx
-		}
-	}
-	// Successors
-	successorKeyIndex := newNodeKeyIndex
-	for i := 0; i < lib.REPLICATION_FACTOR-1; i++ {
-		successorKeyIndex += 1
-		successorKeyIndex %= len(keys)
-		if successorKeyIndex == newNodeKeyIndex {
-			continue
-		}
-		successorNodeData := ringNodeDataMap[keys[successorKeyIndex]]
-		newNodeData.Successors = append(newNodeData.Successors, successorNodeData)
-	}
-	// Predecessors
-	predecessorKeyIndex := newNodeKeyIndex
-	for i := 0; i < lib.REPLICATION_FACTOR-1; i++ {
-		predecessorKeyIndex -= 1
-		if predecessorKeyIndex < 0 {
-			predecessorKeyIndex += len(keys)
-		}
-		if predecessorKeyIndex == newNodeKeyIndex {
-			continue
-		}
-		predecessorNodeData := ringNodeDataMap[keys[predecessorKeyIndex]]
-		newNodeData.Predecessors = append(newNodeData.Predecessors, predecessorNodeData)
-	}
+	successors := lib.FindSuccessors(newNodeKey, ringNodeDataMap)
+	newNodeData.Successors = successors
+	predecessors := lib.FindPredecessors(newNodeKey, ringNodeDataMap)
+	newNodeData.Predecessors = predecessors
 
 	// Edit newNodeData in ringstructure to have the right predecessors and successors. Send newNodeData back to new node.
 	fmt.Printf("Editing Node #%d with %s:%s in the ring... \n", newNodeData.Id, newNodeData.Ip, newNodeData.Port)
@@ -329,15 +294,29 @@ func (ringServer *RingServer) AddNodeHandler(w http.ResponseWriter, r *http.Requ
 	w.WriteHeader(http.StatusOK)
 	w.Write(responseBody)
 
-	// IMPORTANT TODO: Check if these are needed!
-	// Update newNode's successors about its changed precedessors
-	// Update newNode's predecessors about its changed successors
+	// Update newNode's successors about its changed precedessors. Update in ring as well as send them individually.
+	for _, successorSimpleNodeData := range newNodeData.Successors {
+		successorKey, _ := strconv.Atoi(successorSimpleNodeData.Hash)
+		successorNodeData := ringNodeDataMap[successorKey]
+		predecessors := lib.FindPredecessors(successorKey, ringNodeDataMap)
+		successorNodeData.Predecessors = predecessors
+		// Update in ring
+		ringNodeDataMap[successorKey] = successorNodeData
+		// Send them individually
+		lib.UpdatePredecessors(predecessors, successorNodeData)
+	}
+	// Update newNode's predecessors about its changed successors. Update in ring as well as send them individually.
+	for _, predecessorSimpleNodeData := range newNodeData.Predecessors {
+		predecessorKey, _ := strconv.Atoi(predecessorSimpleNodeData.Hash)
+		predecessorNodeData := ringNodeDataMap[predecessorKey]
+		successors := lib.FindSuccessors(predecessorKey, ringNodeDataMap)
+		predecessorNodeData.Successors = successors
+		ringNodeDataMap[predecessorKey] = predecessorNodeData
+		lib.UpdateSuccessors(successors, predecessorNodeData)
+	}
 
-	// Tell newNode's immediate successor to transfer data to the newNode
-	immediateSuccessorKeyIndex := newNodeKeyIndex
-	immediateSuccessorKeyIndex += 1
-	immediateSuccessorKeyIndex %= len(keys)
-	immediateSuccessorNodeData := ringNodeDataMap[keys[immediateSuccessorKeyIndex]]
+	// Finally, tell newNode's immediate successor to transfer data to the newNode
+	immediateSuccessorNodeData := lib.FindImmediateSuccessor(newNodeKey, ringNodeDataMap)
 	go lib.RequestData(immediateSuccessorNodeData, newNodeData)
 
 }
@@ -403,18 +382,15 @@ func main() {
 			fmt.Println("Commands accepted: help, info, ring")
 
 		case "info":
-			ringserverJson, _ := json.Marshal(theRingServer)
 			fmt.Println("RingServer information:")
-			fmt.Println(string(ringserverJson))
+			fmt.Println(lib.PrettyPrintStruct(theRingServer))
 
 		case "ring":
 			if len(theRingServer.Ring.RingNodeDataMap) == 0 {
 				fmt.Println("Ring is empty at the moment.")
 			} else {
-				for key, nd := range theRingServer.Ring.RingNodeDataMap {
-					nodeDataJson, _ := json.Marshal(nd)
-					fmt.Printf("key=%d, %s \n\n", key, string(nodeDataJson))
-				}
+				// Print ring pointer?
+				fmt.Println(lib.PrettyPrintStruct(&theRingServer.Ring))
 			}
 
 		// testing read

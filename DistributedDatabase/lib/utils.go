@@ -66,6 +66,20 @@ func HashMD5(text string, max int) int {
 	return output % max
 }
 
+func PrettyPrintStruct(i interface{}) string {
+	s, _ := json.MarshalIndent(i, "", "\t")
+	return string(s)
+}
+
+func FindIndexOfArray(toFind int, array []int) int {
+	for idx, element := range array {
+		if element == toFind {
+			return idx
+		}
+	}
+	return -1
+}
+
 func WriteMessage(message Message, destIP string, destPort string) {
 	fmt.Printf("Writing message to NodeServer at %s:%s\n", destIP, destPort)
 
@@ -104,21 +118,3 @@ func WriteMessage(message Message, destIP string, destPort string) {
 		fmt.Println("Failed to tell next node about new node. Reason:", string(body2))
 	}
 } */
-
-// Ringserver requests newNode's successor to transfer data to it.
-func RequestData(successorNodeData NodeData, newNodeData NodeData) {
-	requestBody, _ := json.Marshal(newNodeData)
-	postURL := fmt.Sprintf("http://%s:%s/transferdata", successorNodeData.Ip, successorNodeData.Port)
-	resp, err := http.Post(postURL, "application/json", bytes.NewReader(requestBody))
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	defer resp.Body.Close()
-	responseBody, _ := ioutil.ReadAll(resp.Body)
-	if resp.StatusCode == 200 {
-		fmt.Println("Successully told newNode's successor about newNode. Response:", string(responseBody))
-	} else {
-		fmt.Println("Failed to tell newNode's successor about newNode. Reason:", string(responseBody))
-	}
-}

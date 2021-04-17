@@ -21,28 +21,27 @@ type Node struct {
 	Ip           string
 	Port         string
 	Hash         string
-	Predecessors []lib.NodeData
-	Successors   []lib.NodeData
+	Predecessors map[int]lib.SimpleNodeData
+	Successors   map[int]lib.SimpleNodeData
+	//Predecessors []lib.NodeData
+	//Successors   []lib.NodeData
 
 	ConnectedToRing bool
 	RingServerIp    string
 	RingServerPort  string
-
-	// For replication during writes
-	//SuccessorIP   string
-	//SuccessorPort string
 }
 
 func newNode(id int, portNo string) *Node {
 	ip, _ := lib.ExternalIP()
-	//return &Node{id, ip, portNo, "", false, lib.RINGSERVER_IP, lib.RINGSERVER_NODES_PORT, "", ""}
 	return &Node{
-		Id:              id,
-		Ip:              ip,
-		Port:            portNo,
-		Hash:            "",
-		Predecessors:    []lib.NodeData{},
-		Successors:      []lib.NodeData{},
+		Id:           id,
+		Ip:           ip,
+		Port:         portNo,
+		Hash:         "",
+		Predecessors: make(map[int]lib.SimpleNodeData),
+		Successors:   make(map[int]lib.SimpleNodeData),
+		//Predecessors:    []lib.NodeData{},
+		//Successors:      []lib.NodeData{},
 		ConnectedToRing: false,
 		RingServerIp:    lib.RINGSERVER_IP,
 		RingServerPort:  lib.RINGSERVER_NODES_PORT,
@@ -50,7 +49,6 @@ func newNode(id int, portNo string) *Node {
 }
 
 func (n *Node) addNodeToRing() {
-	//nodeData := lib.NodeData{Id: n.Id, Ip: n.Ip, Port: n.Port, Hash: "", PredecessorIP: "", PredecessorPort: ""}
 	nodeData := lib.NodeData{
 		Id:           n.Id,
 		Ip:           n.Ip,
@@ -69,8 +67,6 @@ func (n *Node) addNodeToRing() {
 	}
 	defer resp.Body.Close()
 	responseBody, _ := ioutil.ReadAll(resp.Body)
-	/* predecessorIP := ""
-	predecessorPort := "" */
 	if resp.StatusCode == 200 {
 		var nodeData2 lib.NodeData
 		json.Unmarshal(responseBody, &nodeData2)
@@ -79,12 +75,6 @@ func (n *Node) addNodeToRing() {
 		n.Predecessors = nodeData2.Predecessors
 		n.Successors = nodeData2.Successors
 		n.ConnectedToRing = true
-		/* // So that it can send replicated data upon write requests
-		n.SuccessorIP = nodeData2.SuccessorIP
-		n.SuccessorPort = nodeData2.SuccessorPort
-		// To request replicas
-		predecessorIP = nodeData2.PredecessorIP
-		predecessorPort = nodeData2.PredecessorPort */
 		fmt.Println(nodeData2)
 		go n.listenToRing(n.Port)
 
@@ -134,6 +124,8 @@ func (n *Node) removeNodeFromRing() {
 func (n *Node) listenToRing(portNo string) {
 	http.HandleFunc("/read", n.ReadHandler)
 	http.HandleFunc("/write", n.WriteHandler)
+	http.HandleFunc("/update-predecessors", n.UpdatePredecessorsHandler)
+	http.HandleFunc("/update-successors", n.UpdateSuccessorsHandler)
 	//http.HandleFunc("/transfer", n.TransferHandler)
 	http.HandleFunc("/transferdata", n.TransferDataHandler)
 	//http.HandleFunc("/loadReplica", n.LoadRepHandler)
@@ -190,6 +182,7 @@ func (n *Node) TransferDataHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	// TODO: Check if need to delete replica folder?
 	// TODO: Check if need to refresh thisNode's replication set because you have deleted some of your data?
+	// EDIT: Do all these in transferDataHandler instead
 	fmt.Println("Successfully transferred data to newNode!")
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("200 OK -- Successfully transferred data to newNode!"))
@@ -368,8 +361,8 @@ func (n *Node) ReadHandler(w http.ResponseWriter, r *http.Request) {
 
 	filename := fmt.Sprintf("./node%d/%s", n.Id, keyHash)
 	data, err := ioutil.ReadFile(filename)
-	// Check if keyfile exists in node at all
 
+	// Check if keyfile exists in node at all
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		fmt.Println(err)
@@ -489,6 +482,26 @@ func (n *Node) WriteHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("200 OK -- Successfully wrote to node!"))
 }
 
+func (n *Node) UpdatePredecessorsHandler(w http.ResponseWriter, r *http.Request) {
+	log.Printf("[RingServer] Received Update Predecessors Request from a Ringserver")
+	body, _ := ioutil.ReadAll(r.Body)
+	var newPredecessors map[int]lib.SimpleNodeData
+	json.Unmarshal(body, &newPredecessors)
+	n.Predecessors = newPredecessors
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("200 OK -- Successfully updated node's predecessors!"))
+}
+
+func (n *Node) UpdateSuccessorsHandler(w http.ResponseWriter, r *http.Request) {
+	log.Printf("[RingServer] Received Update Successors Request from a Ringserver")
+	body, _ := ioutil.ReadAll(r.Body)
+	var newSuccessors map[int]lib.SimpleNodeData
+	json.Unmarshal(body, &newSuccessors)
+	n.Successors = newSuccessors
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("200 OK -- Successfully updated node's successors!"))
+}
+
 /* func (n *Node) LoadRepHandler(w http.ResponseWriter, r *http.Request) {
 	log.Print("[NodeServer] Received Request to Reload Replica")
 
@@ -533,9 +546,8 @@ func main() {
 			fmt.Println("Commands accepted: help, info, register, deregister")
 
 		case "info":
-			nodeJson, _ := json.Marshal(thisNode)
 			fmt.Println("Node information:")
-			fmt.Println(string(nodeJson))
+			fmt.Println(lib.PrettyPrintStruct(thisNode))
 
 		case "register":
 			if len(tokens) < 2 {
