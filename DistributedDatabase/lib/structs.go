@@ -12,8 +12,6 @@ type NodeData struct {
 	Hash         string
 	Predecessors map[int]SimpleNodeData
 	Successors   map[int]SimpleNodeData
-	//Predecessors []NodeData
-	//Successors   []NodeData
 }
 
 // NodeData that exclude Predecessors and Successors to prevent infinite recursion

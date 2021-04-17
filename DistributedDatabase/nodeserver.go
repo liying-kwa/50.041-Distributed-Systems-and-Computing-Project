@@ -23,8 +23,6 @@ type Node struct {
 	Hash         string
 	Predecessors map[int]lib.SimpleNodeData
 	Successors   map[int]lib.SimpleNodeData
-	//Predecessors []lib.NodeData
-	//Successors   []lib.NodeData
 
 	ConnectedToRing bool
 	RingServerIp    string
@@ -34,14 +32,12 @@ type Node struct {
 func newNode(id int, portNo string) *Node {
 	ip, _ := lib.ExternalIP()
 	return &Node{
-		Id:           id,
-		Ip:           ip,
-		Port:         portNo,
-		Hash:         "",
-		Predecessors: make(map[int]lib.SimpleNodeData),
-		Successors:   make(map[int]lib.SimpleNodeData),
-		//Predecessors:    []lib.NodeData{},
-		//Successors:      []lib.NodeData{},
+		Id:              id,
+		Ip:              ip,
+		Port:            portNo,
+		Hash:            "",
+		Predecessors:    make(map[int]lib.SimpleNodeData),
+		Successors:      make(map[int]lib.SimpleNodeData),
 		ConnectedToRing: false,
 		RingServerIp:    lib.RINGSERVER_IP,
 		RingServerPort:  lib.RINGSERVER_NODES_PORT,
@@ -49,6 +45,8 @@ func newNode(id int, portNo string) *Node {
 }
 
 func (n *Node) addNodeToRing() {
+
+	// Request Ringserver to add this node to the ring
 	nodeData := lib.NodeData{
 		Id:           n.Id,
 		Ip:           n.Ip,
@@ -58,7 +56,6 @@ func (n *Node) addNodeToRing() {
 		Successors:   n.Successors,
 	}
 	requestBody, _ := json.Marshal(nodeData)
-	// Send to ring server for adding to ring
 	postURL := fmt.Sprintf("http://%s:%s/add-node", n.RingServerIp, n.RingServerPort)
 	resp, err := http.Post(postURL, "application/json", bytes.NewReader(requestBody))
 	if err != nil {
@@ -67,6 +64,8 @@ func (n *Node) addNodeToRing() {
 	}
 	defer resp.Body.Close()
 	responseBody, _ := ioutil.ReadAll(resp.Body)
+
+	// Update this node's information locally and create folder for storing data
 	if resp.StatusCode == 200 {
 		var nodeData2 lib.NodeData
 		json.Unmarshal(responseBody, &nodeData2)
@@ -77,10 +76,8 @@ func (n *Node) addNodeToRing() {
 		n.ConnectedToRing = true
 		fmt.Println(nodeData2)
 		go n.listenToRing(n.Port)
-
 		// Create folder (unique to node) for storing data (if folder doesnt already exist)
 		folderName := "node" + strconv.Itoa(n.Id)
-
 		if _, err := os.Stat(folderName); os.IsNotExist(err) {
 			os.Mkdir(folderName, 0755)
 		}
@@ -89,36 +86,27 @@ func (n *Node) addNodeToRing() {
 		fmt.Println("Failed to register. Response:", string(responseBody))
 	}
 
-	/* // Request for replica (when more than 1 node in ring)
-	if n.Ip == predecessorIP && n.Port == predecessorPort {
-		return
-	} else {
-		// Buffer time to allow receiving of supposed data before receiving replica
-		time.Sleep(time.Second * 2)
-		fmt.Printf("Requesting predecessor %s:%s for replica\n", predecessorIP, predecessorPort)
-		go lib.RequestTransfer(n.Ip, n.Port, predecessorIP, predecessorPort, -1, true)
-	} */
 	// So that the command line can print correctly
 	time.Sleep(time.Second)
 }
 
 func (n *Node) removeNodeFromRing() {
-	// nodeData := lib.NodeData{n.Id, n.Ip, n.Port}
-	// requestBody, _ := json.Marshal(nodeData)
-	// postURL := fmt.Sprintf("http://%s:%s/remove-node", n.RingServerIp, n.RingServerPort)
-	// resp, err := http.Post(postURL, "application/json", bytes.NewReader(requestBody))
-	// if err != nil {
-	// 	fmt.Println(err)
-	// 	return
-	// }
-	// defer resp.Body.Close()
-	// body, _ := ioutil.ReadAll(resp.Body)
-	// if resp.StatusCode == 200 {
-	// 	n.ConnectedToRing = false
-	// 	fmt.Println("Successfully de-registered. Response:", string(body))
-	// } else {
-	// 	fmt.Println("Failed to de-register. Reason:", string(body))
-	// }
+	/* nodeData := lib.NodeData{n.Id, n.Ip, n.Port}
+	requestBody, _ := json.Marshal(nodeData)
+	postURL := fmt.Sprintf("http://%s:%s/remove-node", n.RingServerIp, n.RingServerPort)
+	resp, err := http.Post(postURL, "application/json", bytes.NewReader(requestBody))
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	defer resp.Body.Close()
+	body, _ := ioutil.ReadAll(resp.Body)
+	if resp.StatusCode == 200 {
+		n.ConnectedToRing = false
+		fmt.Println("Successfully de-registered. Response:", string(body))
+	} else {
+		fmt.Println("Failed to de-register. Reason:", string(body))
+	} */
 }
 
 func (n *Node) listenToRing(portNo string) {
@@ -126,214 +114,12 @@ func (n *Node) listenToRing(portNo string) {
 	http.HandleFunc("/write", n.WriteHandler)
 	http.HandleFunc("/update-predecessors", n.UpdatePredecessorsHandler)
 	http.HandleFunc("/update-successors", n.UpdateSuccessorsHandler)
-	//http.HandleFunc("/transfer", n.TransferHandler)
-	http.HandleFunc("/transferdata", n.TransferDataHandler)
-	//http.HandleFunc("/loadReplica", n.LoadRepHandler)
+	http.HandleFunc("/migrate-data", n.MigrateDataHandler)
+	http.HandleFunc("/reload-replica", n.ReloadReplicaHandler)
+	http.HandleFunc("/replicate", n.ReplicateHandler)
 	log.Print(fmt.Sprintf("[NodeServer] Started and Listening at %s:%s.", n.Ip, n.Port))
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%s", n.Port), nil))
 }
-
-// This is the newNode's successor. Pass part of this node's data to newNode
-func (n *Node) TransferDataHandler(w http.ResponseWriter, r *http.Request) {
-	log.Print("[NodeServer] Received Transfer Request for data to be replicated")
-	body, _ := ioutil.ReadAll(r.Body)
-	var newNodeData lib.NodeData
-	json.Unmarshal(body, &newNodeData)
-	newNodeKey, _ := strconv.Atoi(newNodeData.Hash)
-	thisNodeKey, _ := strconv.Atoi(n.Hash)
-	// Check each keyfile to see if need to send it over to newNode
-	foldername := fmt.Sprintf("./node%d/", n.Id)
-	files, _ := ioutil.ReadDir(foldername)
-	for _, file := range files {
-		// Skip transferring the replica folder
-		if file.Name() == "replica" {
-			continue
-		}
-		// Get compare fileKey with thisNodeKey and nextNodeKey to see if need to transfer
-		filename := fmt.Sprintf("./node%d/%s", n.Id, file.Name())
-		fileKey, _ := strconv.Atoi(file.Name())
-
-		if (thisNodeKey > newNodeKey && (fileKey <= newNodeKey || fileKey > thisNodeKey)) ||
-			(newNodeKey > thisNodeKey && (fileKey <= newNodeKey && fileKey > thisNodeKey)) {
-			data, _ := ioutil.ReadFile(filename)
-			lines := strings.Split(string(data), "\n")
-			for _, line := range lines {
-				interim := strings.Split(line, " ")
-				courseId := interim[0]
-				count := interim[1]
-				message := lib.Message{
-					Type:     lib.Put,
-					CourseId: courseId,
-					Count:    count,
-					Hash:     file.Name(),
-					Replica:  false,
-				}
-				lib.WriteMessage(message, newNodeData.Ip, newNodeData.Port)
-			}
-			// Done transferring, delete file.
-			e := os.Remove(filename)
-			if e != nil {
-				log.Fatal(e)
-			} else {
-				fmt.Println("Transferred the data successfully and deleted the file locally")
-			}
-		}
-
-	}
-	// TODO: Check if need to delete replica folder?
-	// TODO: Check if need to refresh thisNode's replication set because you have deleted some of your data?
-	// EDIT: Do all these in transferDataHandler instead
-	fmt.Println("Successfully transferred data to newNode!")
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("200 OK -- Successfully transferred data to newNode!"))
-}
-
-/* func (n *Node) TransferHandler(w http.ResponseWriter, r *http.Request) {
-	body, _ := ioutil.ReadAll(r.Body)
-	var trfMessage lib.TransferMessage
-	json.Unmarshal(body, &trfMessage)
-	fmt.Printf("Transfer Message: %v\n", trfMessage)
-
-	if trfMessage.Replica {
-		fmt.Print("[NodeServer] Received Transfer Request for data to be replicated")
-		n.SuccessorIP = trfMessage.Ip
-		n.SuccessorPort = trfMessage.Port
-	} else {
-		fmt.Print("[NodeServer] Received Transfer Request for Data")
-
-		// New node added, transfer all its data and delete its replica (so that it can re-request for the latest replica)
-		folderName := fmt.Sprintf("./node%d/replica/", n.Id)
-		err := os.RemoveAll(folderName)
-		if err != nil {
-			log.Fatal(err)
-		}
-	}
-
-	foldername := fmt.Sprintf("./node%d/", n.Id)
-	items, _ := ioutil.ReadDir(foldername)
-
-	for _, item := range items {
-		// Skip transferring the replica folder
-		if item.Name() == "replica" {
-			continue
-		}
-		fileNameKey := -1
-		newNodeKey := -2
-		if correct, err := strconv.Atoi(item.Name()); err != nil {
-			fmt.Println(err)
-			w.WriteHeader(http.StatusBadRequest)
-			w.Write([]byte(err.Error()))
-			return
-		} else {
-			fileNameKey = correct
-		}
-
-		if correct, err := strconv.Atoi(trfMessage.Hash); err != nil {
-			fmt.Println(err)
-			w.WriteHeader(http.StatusBadRequest)
-			w.Write([]byte(err.Error()))
-			return
-		} else {
-			newNodeKey = correct
-		}
-
-		// fmt.Printf("this is the filenamekey: \n")
-		// fmt.Println(fileNameKey)
-
-		// fmt.Printf("this is the newnodekey: \n")
-		// fmt.Println(newNodeKey)
-
-		ownHash := -1
-
-		if correct, err := strconv.Atoi(n.Hash); err != nil {
-			fmt.Println(err)
-			w.WriteHeader(http.StatusBadRequest)
-			w.Write([]byte(err.Error()))
-			return
-		} else {
-			ownHash = correct
-		}
-
-		filename := fmt.Sprintf("./node%d/%s", n.Id, item.Name())
-		lines := []string{}
-		print(newNodeKey, fileNameKey, ownHash)
-		// Sending all files to be replica or selected files to new node
-		if trfMessage.Replica || (newNodeKey > ownHash && (newNodeKey >= fileNameKey && fileNameKey > ownHash)) || (newNodeKey < ownHash && (newNodeKey >= fileNameKey || fileNameKey > ownHash)) {
-			print(ownHash)
-			fmt.Printf("trying to read file \n")
-			data, err := ioutil.ReadFile(filename)
-			fmt.Printf("managed to read file \n")
-			if err != nil {
-				fmt.Println(err)
-				w.WriteHeader(http.StatusBadRequest)
-				w.Write([]byte(err.Error()))
-				return
-			}
-			lines = strings.Split(string(data), "\n")
-		} else {
-			continue
-		}
-
-		for _, line := range lines {
-			fmt.Printf("trying to send lines")
-			interim := strings.Split(line, " ")
-
-			// fmt.Printf("interim list: \n")
-			// fmt.Println(interim)
-
-			// fmt.Printf("courseid: \n")
-			// fmt.Println(interim[0])
-			courseId := interim[0]
-
-			// fmt.Printf("count: \n")
-			// fmt.Println(interim[1])
-			count := interim[1]
-
-			message := lib.Message{}
-			if trfMessage.Replica {
-				message = lib.Message{Type: lib.Put, CourseId: courseId, Count: count, Hash: item.Name(), Replica: true}
-			} else {
-				message = lib.Message{Type: lib.Put, CourseId: courseId, Count: count, Hash: item.Name(), Replica: false}
-			}
-
-			// Not implemented as async because you want to be sure the message is sent before deleting it
-			lib.WriteMessage(message, trfMessage.Ip, trfMessage.Port)
-		}
-		// Delete the file if not replica
-		if !trfMessage.Replica && ((newNodeKey > ownHash && (newNodeKey >= fileNameKey && fileNameKey > ownHash)) || (newNodeKey < ownHash && (newNodeKey >= fileNameKey || fileNameKey > ownHash))) {
-			fmt.Printf("[DELETING FILE] %s\n", filename)
-			e := os.Remove(filename)
-			if e != nil {
-				log.Fatal(e)
-			} else {
-				fmt.Printf("Transferred the data successfully and deleted the file locally")
-			}
-		}
-	}
-
-	if !trfMessage.Replica {
-		// Inform successor to refresh its replication set because you have deleted some of your data
-		time.Sleep(time.Second * 5)
-		nodeData := lib.NodeData{Id: n.Id, Ip: n.Ip, Port: n.Port, Hash: "", PredecessorIP: "", PredecessorPort: ""}
-		requestBody, _ := json.Marshal(nodeData)
-		postURL := fmt.Sprintf("http://%s:%s/loadReplica", n.SuccessorIP, n.SuccessorPort)
-		resp, err := http.Post(postURL, "application/json", bytes.NewReader(requestBody))
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-		defer resp.Body.Close()
-
-		if resp.StatusCode == 200 {
-			fmt.Println("Requested for Replica Refresh!")
-		}
-
-	}
-
-	fmt.Println("Successfully updated new node!")
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("200 OK -- Successfully wrote to node!"))
-} */
 
 func (n *Node) ReadHandler(w http.ResponseWriter, r *http.Request) {
 	log.Print("[NodeServer] Received Read Request from RingServer")
@@ -347,7 +133,6 @@ func (n *Node) ReadHandler(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(problem))
 		return
 	}
-
 	problem := "Query parameter 'keyhash' is missing"
 	fmt.Println(problem)
 	if !ok || len(keyHashArray) < 1 {
@@ -358,7 +143,6 @@ func (n *Node) ReadHandler(w http.ResponseWriter, r *http.Request) {
 
 	courseId := courseIdArray[0]
 	keyHash := keyHashArray[0]
-
 	filename := fmt.Sprintf("./node%d/%s", n.Id, keyHash)
 	data, err := ioutil.ReadFile(filename)
 
@@ -383,7 +167,6 @@ func (n *Node) ReadHandler(w http.ResponseWriter, r *http.Request) {
 			count = interim[1]
 			break
 		}
-
 	}
 	// If courseId exists, return count. Else, return 'error' msg
 	if exist == true {
@@ -403,7 +186,6 @@ func (n *Node) WriteHandler(w http.ResponseWriter, r *http.Request) {
 	body, _ := ioutil.ReadAll(r.Body)
 	var message lib.Message
 	json.Unmarshal(body, &message)
-	fmt.Println(message)
 	filename := fmt.Sprintf("./node%d/%s", n.Id, message.Hash)
 	dataToWrite := message.CourseId + " " + message.Count
 
@@ -418,15 +200,13 @@ func (n *Node) WriteHandler(w http.ResponseWriter, r *http.Request) {
 		filename = fmt.Sprintf("./node%d/replica/%s", n.Id, message.Hash)
 	} else {
 		// Send to successors to replicate
-		print("FORWARDING MESSAGE TO SUCCESSOR TO REPLICATE")
+		// NOTE: Comment out this branch (remove interference) to test replica migration when node is added
+		/* print("FORWARDING MESSAGE TO SUCCESSOR TO REPLICATE")
 		for _, successor := range n.Successors {
-			/* print(n.SuccessorIP, n.SuccessorPort)
-			message.Replica = true
-			go lib.WriteMessage(message, n.SuccessorIP, n.SuccessorPort) */
 			print(successor.Ip, successor.Port)
 			message.Replica = true
 			go lib.WriteMessage(message, successor.Ip, successor.Port)
-		}
+		} */
 	}
 
 	// Write data
@@ -502,28 +282,132 @@ func (n *Node) UpdateSuccessorsHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("200 OK -- Successfully updated node's successors!"))
 }
 
-/* func (n *Node) LoadRepHandler(w http.ResponseWriter, r *http.Request) {
-	log.Print("[NodeServer] Received Request to Reload Replica")
+// This is the newNode's successor. Pass part of this node's data to newNode
+func (n *Node) MigrateDataHandler(w http.ResponseWriter, r *http.Request) {
+	log.Print("[NodeServer] Received Transfer Request for data to be migrated to new node")
+	body, _ := ioutil.ReadAll(r.Body)
+	var newNodeData lib.NodeData
+	json.Unmarshal(body, &newNodeData)
+	newNodeKey, _ := strconv.Atoi(newNodeData.Hash)
+	thisNodeKey, _ := strconv.Atoi(n.Hash)
+	// Check each keyfile to see if need to send it over to newNode
+	foldername := fmt.Sprintf("./node%d/", n.Id)
+	files, _ := ioutil.ReadDir(foldername)
+	for _, file := range files {
+		// Skip transferring the replica folder
+		if file.Name() == "replica" {
+			continue
+		}
+		// Get compare fileKey with thisNodeKey and nextNodeKey to see if need to transfer
+		filename := fmt.Sprintf("./node%d/%s", n.Id, file.Name())
+		fileKey, _ := strconv.Atoi(file.Name())
 
-	// Delete all its replica before requesting for replica
+		if (thisNodeKey > newNodeKey && (fileKey <= newNodeKey || fileKey > thisNodeKey)) ||
+			(newNodeKey > thisNodeKey && (fileKey <= newNodeKey && fileKey > thisNodeKey)) {
+			data, _ := ioutil.ReadFile(filename)
+			lines := strings.Split(string(data), "\n")
+			for _, line := range lines {
+				interim := strings.Split(line, " ")
+				courseId := interim[0]
+				count := interim[1]
+				message := lib.Message{
+					Type:     lib.Put,
+					CourseId: courseId,
+					Count:    count,
+					Hash:     file.Name(),
+					Replica:  false,
+				}
+				lib.WriteMessage(message, newNodeData.Ip, newNodeData.Port)
+			}
+			// Done transferring, delete file.
+			e := os.Remove(filename)
+			if e != nil {
+				log.Fatal(e)
+			} else {
+				fmt.Println("Transferred the data successfully and deleted the file locally")
+			}
+		}
+
+	}
+	fmt.Println("Successfully transferred data to newNode!")
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("200 OK -- Successfully transferred data to newNode!"))
+}
+
+func (n *Node) ReloadReplicaHandler(w http.ResponseWriter, r *http.Request) {
+	// Delete its replica folder (so that it can re-request for the latest replica)
 	folderName := fmt.Sprintf("./node%d/replica/", n.Id)
 	err := os.RemoveAll(folderName)
 	if err != nil {
 		log.Fatal(err)
 	}
+	// Request for its predecessors to send data over here to store as replica here
+	for _, predecessor := range n.Predecessors {
+		thisNodeData := lib.NodeData{
+			Id:           n.Id,
+			Ip:           n.Ip,
+			Port:         n.Port,
+			Hash:         n.Hash,
+			Predecessors: n.Predecessors,
+			Successors:   n.Successors,
+		}
+		requestBody, _ := json.Marshal(thisNodeData)
+		postURL := fmt.Sprintf("http://%s:%s/replicate", predecessor.Ip, predecessor.Port)
+		resp, err := http.Post(postURL, "application/json", bytes.NewReader(requestBody))
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		defer resp.Body.Close()
+		responseBody, _ := ioutil.ReadAll(resp.Body)
+		if resp.StatusCode == 200 {
+			fmt.Println("Successfully requested for transfer of data (to replicate) from predecessor. Response:", string(responseBody))
+			w.WriteHeader(http.StatusOK)
+			w.Write(responseBody)
+		} else {
+			fmt.Println("Failed to request for transfer of data (to replicate) from predecessor. Response:", string(responseBody))
+			w.WriteHeader(resp.StatusCode)
+			w.Write(responseBody)
+		}
+	}
+}
 
+// This is one of the predecessors of an affected node. Send data back to sourceNode (where the request came from) to replicate
+func (n *Node) ReplicateHandler(w http.ResponseWriter, r *http.Request) {
+	log.Print("[NodeServer] Received Transfer Request for data to be replicated to sourceNode")
 	body, _ := ioutil.ReadAll(r.Body)
-	var nodeData lib.NodeData
-	json.Unmarshal(body, &nodeData)
-
-	print("REQUEST DATA FROM")
-	print(n.Port)
-	print("TO")
-	print(nodeData.Port)
-	print("TO BE REPLICA")
-	go lib.RequestTransfer(n.Ip, n.Port, nodeData.Ip, nodeData.Port, -1, true)
-
-} */
+	var sourceNodeData lib.NodeData
+	json.Unmarshal(body, &sourceNodeData)
+	// Transfer all data files in this node's folder
+	foldername := fmt.Sprintf("./node%d/", n.Id)
+	files, _ := ioutil.ReadDir(foldername)
+	for _, file := range files {
+		// Skip transferring the replica folder
+		if file.Name() == "replica" {
+			continue
+		}
+		// Transfer file contents
+		filename := fmt.Sprintf("./node%d/%s", n.Id, file.Name())
+		data, _ := ioutil.ReadFile(filename)
+		lines := strings.Split(string(data), "\n")
+		for _, line := range lines {
+			interim := strings.Split(line, " ")
+			courseId := interim[0]
+			count := interim[1]
+			message := lib.Message{
+				Type:     lib.Put,
+				CourseId: courseId,
+				Count:    count,
+				Hash:     file.Name(),
+				Replica:  true,
+			}
+			lib.WriteMessage(message, sourceNodeData.Ip, sourceNodeData.Port)
+		}
+	}
+	fmt.Println("Successfully replicated data to affectedNode!")
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("200 OK -- Successfully replicated data to affectedNode!"))
+}
 
 func main() {
 

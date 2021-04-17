@@ -118,10 +118,10 @@ func FindImmediateSuccessor(thisNodeKey int, ringNodeDataMap map[int]NodeData) N
 	return immediateSuccessorNodeData
 }
 
-// Ringserver requests newNode's immeidate successor to transfer data to it.
-func RequestData(successorNodeData NodeData, newNodeData NodeData) {
+// Ringserver requests newNode's immediate successor to transfer data to it.
+func RequestDataMigration(successorNodeData NodeData, newNodeData NodeData) {
 	requestBody, _ := json.Marshal(newNodeData)
-	postURL := fmt.Sprintf("http://%s:%s/transferdata", successorNodeData.Ip, successorNodeData.Port)
+	postURL := fmt.Sprintf("http://%s:%s/migrate-data", successorNodeData.Ip, successorNodeData.Port)
 	resp, err := http.Post(postURL, "application/json", bytes.NewReader(requestBody))
 	if err != nil {
 		fmt.Println(err)
@@ -133,5 +133,22 @@ func RequestData(successorNodeData NodeData, newNodeData NodeData) {
 		fmt.Println("Successully told newNode's successor about newNode. Response:", string(responseBody))
 	} else {
 		fmt.Println("Failed to tell newNode's successor about newNode. Reason:", string(responseBody))
+	}
+}
+
+func InformReloadReplica(affectedNode SimpleNodeData) {
+	requestBody, _ := json.Marshal(affectedNode)
+	postURL := fmt.Sprintf("http://%s:%s/reload-replica", affectedNode.Ip, affectedNode.Port)
+	resp, err := http.Post(postURL, "application/json", bytes.NewReader(requestBody))
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	defer resp.Body.Close()
+	responseBody, _ := ioutil.ReadAll(resp.Body)
+	if resp.StatusCode == 200 {
+		fmt.Println("Successully told affectedNode to reload replica. Response:", string(responseBody))
+	} else {
+		fmt.Println("Failed to tell affectedNode to reload replica. Reason:", string(responseBody))
 	}
 }

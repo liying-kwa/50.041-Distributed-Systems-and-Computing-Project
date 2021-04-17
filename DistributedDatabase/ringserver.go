@@ -3,7 +3,6 @@ package main
 import (
 	"bufio"
 	"bytes"
-	"crypto/md5"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -41,20 +40,10 @@ func newRingServer() RingServer {
 	}
 }
 
-// md5 hashing
-func HashMD5(text string, max int) int {
-	byteArray := md5.Sum([]byte(text))
-	var output int
-	for _, num := range byteArray {
-		output += int(num)
-	}
-	return output % max
-}
-
 // Function to allocate the given CourseId to a node and return that nodeData and keyHash
 func (ringServer *RingServer) AllocateKey(key string) (lib.NodeData, string) {
 	nodeMap := ringServer.Ring.RingNodeDataMap
-	keyHash := HashMD5(key, lib.MAX_KEYS)
+	keyHash := lib.HashMD5(key, lib.MAX_KEYS)
 	fmt.Printf("this is the hash below: \n")
 	fmt.Println(keyHash)
 
@@ -274,7 +263,7 @@ func (ringServer *RingServer) AddNodeHandler(w http.ResponseWriter, r *http.Requ
 	fmt.Printf("Adding Node #%d with %s:%s to the ring... \n", newNodeData.Id, newNodeData.Ip, newNodeData.Port)
 	ringNodeDataMap[newNodeKey] = newNodeData
 
-	// Find the node's RF successors and RF predecessors and update newNodeData.
+	// Find the node's RF successors and RF predecessors and update newNodeData
 	// SKIP ALL THIS NONSENSE IF NEWNODE IS THE ONLY ONE IN THE RING. Send newNodeData back to new node
 	if len(ringNodeDataMap) == 1 {
 		responseBody, _ := json.Marshal(newNodeData)
@@ -315,10 +304,34 @@ func (ringServer *RingServer) AddNodeHandler(w http.ResponseWriter, r *http.Requ
 		lib.UpdateSuccessors(successors, predecessorNodeData)
 	}
 
-	// Finally, tell newNode's immediate successor to transfer data to the newNode
-	immediateSuccessorNodeData := lib.FindImmediateSuccessor(newNodeKey, ringNodeDataMap)
-	go lib.RequestData(immediateSuccessorNodeData, newNodeData)
+	// Finally, migrate and replicate
+	go ringServer.migrateAndReplicate(newNodeKey, ringNodeDataMap)
 
+}
+
+func (ringServer *RingServer) migrateAndReplicate(newNodeKey int, ringNodeDataMap map[int]lib.NodeData) {
+	// Tell newNode's immediate successor to migrate part of data to the newNode
+	immediateSuccessorNodeData := lib.FindImmediateSuccessor(newNodeKey, ringNodeDataMap)
+	newNodeData := ringNodeDataMap[newNodeKey]
+	lib.RequestDataMigration(immediateSuccessorNodeData, newNodeData)
+	// When data migration is done, broadcast reloadReplica for all affected nodes, i.e. newNode, newNode's successor, newNode's successor's successors
+	newSimpleNodeData := lib.SimpleNodeData{
+		Id:   newNodeData.Id,
+		Ip:   newNodeData.Ip,
+		Port: newNodeData.Port,
+		Hash: newNodeData.Hash,
+	}
+	immediateSuccessorSimpleNodeData := lib.SimpleNodeData{
+		Id:   immediateSuccessorNodeData.Id,
+		Ip:   immediateSuccessorNodeData.Ip,
+		Port: immediateSuccessorNodeData.Port,
+		Hash: immediateSuccessorNodeData.Hash,
+	}
+	go lib.InformReloadReplica(newSimpleNodeData)
+	go lib.InformReloadReplica(immediateSuccessorSimpleNodeData)
+	for _, successor := range immediateSuccessorNodeData.Successors {
+		go lib.InformReloadReplica(successor)
+	}
 }
 
 func (ringServer *RingServer) RemoveNodeHandler(w http.ResponseWriter, r *http.Request) {
@@ -389,7 +402,7 @@ func main() {
 			if len(theRingServer.Ring.RingNodeDataMap) == 0 {
 				fmt.Println("Ring is empty at the moment.")
 			} else {
-				// Print ring pointer?
+				// Print ring pointer? TODO: Fix MaxID display, it always shows -1 for some reason
 				fmt.Println(lib.PrettyPrintStruct(&theRingServer.Ring))
 			}
 
