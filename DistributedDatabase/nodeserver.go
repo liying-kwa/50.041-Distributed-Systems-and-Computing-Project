@@ -117,6 +117,7 @@ func (n *Node) listenToRing(portNo string) {
 	http.HandleFunc("/migrate-data", n.MigrateDataHandler)
 	http.HandleFunc("/reload-replica", n.ReloadReplicaHandler)
 	http.HandleFunc("/replicate", n.ReplicateHandler)
+	http.HandleFunc("/update-nodes", n.updateRingServer)
 	log.Print(fmt.Sprintf("[NodeServer] Started and Listening at %s:%s.", n.Ip, n.Port))
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%s", n.Port), nil))
 }
@@ -407,6 +408,11 @@ func (n *Node) ReplicateHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("Successfully replicated data to affectedNode!")
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("200 OK -- Successfully replicated data to affectedNode!"))
+}
+
+func (n *Node) updateRingServer(portNo string) {
+	fmt.Println("oi hello")
+	n.RingServerPort = portNo
 }
 
 func main() {

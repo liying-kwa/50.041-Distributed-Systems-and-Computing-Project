@@ -232,7 +232,7 @@ func (ringServer *RingServer) WriteToNode(courseId string, count string) {
 }
 
 // Listening on port 5001 for communication with Nodes
-func (ringServer RingServer) listenToNodes() {
+func (ringServer *RingServer) listenToNodes() {
 	// http.HandleFunc("/test", ringServer.test)
 	http.HandleFunc("/add-node", ringServer.AddNodeHandler)
 	http.HandleFunc("/remove-node", ringServer.RemoveNodeHandler)
@@ -384,56 +384,89 @@ func (ringServer *RingServer) RemoveNodeHandler(w http.ResponseWriter, r *http.R
 
 func (ringServer *RingServer) SendResponseHandler(w http.ResponseWriter, r *http.Request) {
 	// print(lib.PrettyPrintStruct(ringServer))
-	ringServer.Ring.IsAlive = false
-	// if (ringServer.Ring.IsAlive) {
-	// 	log.Printf("[RingServer] Receiving Ping Request from Secondary Node")
-	// 	ringNodeDataMap := ringServer.Ring.RingNodeDataMap
-	// 	numMilliSeconds := rand.Intn(1000) + 3000
-	// 	time.Sleep(time.Duration(numMilliSeconds) * time.Millisecond)
-	// 	responseBody, _ := json.Marshal(ringNodeDataMap)
-	// 	w.WriteHeader(http.StatusOK)
-	// 	w.Write(responseBody)
-	// } 
+	if (ringServer.Ring.IsAlive) {
+		fmt.Println(ringServer.Ring.IsAlive)
+		log.Printf("[RingServer] Receiving Ping Request from Secondary Node")
+		ringNodeDataMap := ringServer.Ring.RingNodeDataMap
+		numMilliSeconds := rand.Intn(1000) + 3000
+		time.Sleep(time.Duration(numMilliSeconds) * time.Millisecond)
+		responseBody, _ := json.Marshal(ringNodeDataMap)
+		w.WriteHeader(http.StatusOK)
+		w.Write(responseBody)
+	} 
+	return
+	// w.WriteHeader(http.StatusBadRequest)
 }
 
-func (ringServer *RingServer) checkAlive() {
+func (ringServer RingServer) checkAlive() {
 	for {
 		log.Print(fmt.Sprintf("[SecondRingServer] Started pinging Primary Server %s:%s", ringServer.Ip, lib.RINGSERVER_NODES_PORT))
 		numMilliSeconds := rand.Intn(1000) + 3000
 		time.Sleep(time.Duration(numMilliSeconds) * time.Millisecond)
-		pingMessage := lib.Message{Type: lib.Put, CourseId: "", Count: "", Hash: "", Replica: false}
-		requestBody, _ := json.Marshal(pingMessage)
-		postURL := fmt.Sprintf("http://%s:%s/send-res", ringServer.Ip, lib.RINGSERVER_NODES_PORT)
-		resp, _ := http.Post(postURL, "application/json", bytes.NewReader(requestBody))
+
+
+		fmt.Println("Primary node is down. Secondary node taking over.")
+		requestBody, _ := json.Marshal(lib.RINGSERVER_SECOND_NODES_PORT)
+		postURL := fmt.Sprintf("http://%s:%s/update-nodes", ringServer.Ip, )
+		resp, err := http.Post(postURL, "application/json", bytes.NewReader(requestBody))
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		defer resp.Body.Close()
+		responseBody, _ := ioutil.ReadAll(resp.Body)
+		if resp.StatusCode == 200 {
+			fmt.Println("Successfully updated ring server. Response:", string(responseBody))
+		} else {
+			fmt.Println("Failed to update ring server. Response:", string(responseBody))
+		}
+
+
+
+
+		// pingMessage := lib.Message{Type: lib.Put, CourseId: "", Count: "", Hash: "", Replica: false}
+		// // requestBody, _ := json.Marshal(pingMessage)
+		// getURL := fmt.Sprintf("http://%s:%s/send-res", ringServer.Ip, lib.RINGSERVER_NODES_PORT)
+		
+
+		// // counter := 1
+		// // gotResponse := false
+		// // for counter < 8 {
+		// c := &http.Client {
+		// 	Timeout: 5 * time.Second,
+		// }
+		// resp, err := c.Get(getURL)
+		// // if err != nil {
+		// // 	fmt.Println(err)
+		// 	// w.WriteHeader(http.StatusBadRequest)
+		// 	// w.Write([]byte(err.Error()))
+		// 	// return
+		// // }
 		// if err != nil {
 		// 	fmt.Println(err)
-			// w.WriteHeader(http.StatusBadRequest)
-			// w.Write([]byte(err.Error()))
-			// return
+		// 	fmt.Println("Primary node is down. Secondary node taking over.")
 		// }
-		defer resp.Body.Close()
-		body2, _ := ioutil.ReadAll(resp.Body)
-
-		counter := 1
-		gotResponse := false
-		for counter < 8 {
-			if resp.StatusCode == 200 {
-				fmt.Println("Successfully got back Ring Structure. Response:", string(body2))
-				// w.Header().Set("Access-Control-Allow-Origin", "*")
-				// w.WriteHeader(http.StatusOK)
-				// w.Write([]byte(string(body2)))
-				gotResponse = true
-				break
-			} 
-			time.Sleep(time.Duration(1000) * time.Millisecond)
-			counter += 1
-		}
-		if !gotResponse {
-			fmt.Println("Primary node is down. Secondary node taking over.")
-		}
+		// defer resp.Body.Close()
+		// body2, _ := ioutil.ReadAll(resp.Body)
+		// if resp.StatusCode == 200 {
+		// 	fmt.Println("Successfully got back Ring Structure. Response:", string(body2))
+		// 	// w.Header().Set("Access-Control-Allow-Origin", "*")
+		// 	// w.WriteHeader(http.StatusOK)
+		// 	// w.Write([]byte(string(body2)))
+		// 	// gotResponse = true
+		// 	// break
+		// } 
+		// 	// time.Sleep(time.Duration(1000) * time.Millisecond)
+		// 	// counter += 1
+		// 	// fmt.Println(counter)
+		// // }
 
 		
 	}
+}
+
+func informAllNodes() {
+
 }
 
 func main() {
