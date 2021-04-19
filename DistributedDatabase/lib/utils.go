@@ -91,3 +91,4 @@ func WriteMessage(message Message, destIP string, destPort string) {
 		fmt.Println("Failed to write to node. Reason:", string(body))
 	}
 }
+

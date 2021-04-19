@@ -15,7 +15,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
+	"os/exec"
 	"github.com/liying-kwa/50.041-Distributed-Systems-and-Computing-Project/DistributedDatabase/lib"
 )
 
@@ -27,8 +27,10 @@ type RingServer struct {
 }
 
 // Initiate socket of ring on port 5001 (for communication with node server)
-func newRingServer() RingServer {
+func newRingServer() (RingServer, RingServer) {
 	ip, _ := lib.ExternalIP()
+	
+
 	return RingServer{
 		ip,
 		lib.RINGSERVER_NODES_PORT,
@@ -36,6 +38,16 @@ func newRingServer() RingServer {
 		lib.Ring{
 			-1,
 			make(map[int]lib.NodeData),
+			true,
+		},
+	}, RingServer{
+		ip,
+		lib.RINGSERVER_SECOND_NODES_PORT,
+		lib.RINGSERVER_FRONTEND_PORT,
+		lib.Ring{
+			-1,
+			make(map[int]lib.NodeData),
+			false,
 		},
 	}
 }
@@ -225,6 +237,7 @@ func (ringServer RingServer) listenToNodes() {
 	// http.HandleFunc("/test", ringServer.test)
 	http.HandleFunc("/add-node", ringServer.AddNodeHandler)
 	http.HandleFunc("/remove-node", ringServer.RemoveNodeHandler)
+	http.HandleFunc("/send-res", ringServer.SendResponseHandler)
 	//http.HandleFunc("/revive-node", ringServer.ReviveNodeHandler)
 	//http.HandleFunc("/get-node", ringServer.GetNodeHandler)
 	//http.HandleFunc("/get-ring", ringServer.GetRingHandler)
@@ -365,14 +378,64 @@ func (ringServer *RingServer) RemoveNodeHandler(w http.ResponseWriter, r *http.R
 	w.Write([]byte("200 OK -- Successlly removed node from ring!"))
 }
 
+// func (ringServer RingServer) pingPrimaryRingServer() {
+// 	http.HandleFunc("/checkAlive", ringServer.checkAlive) 
+// 	log.Print(fmt.Sprintf("[SecondRingServer] Started pinging Primary Server %s:%s", ringServer.Ip, lib.RINGSERVER_NODES_PORT))
+// }
+
+func (ringServer *RingServer) SendResponseHandler(w http.ResponseWriter, r *http.Request) {
+	log.Printf("[RingServer] Receiving Ping Request from Secondary Node")
+	ringNodeDataMap := ringServer.Ring.RingNodeDataMap
+	numMilliSeconds := rand.Intn(1000) + 3000
+	time.Sleep(time.Duration(numMilliSeconds) * time.Millisecond)
+	responseBody, _ := json.Marshal(ringNodeDataMap)
+	w.WriteHeader(http.StatusOK)
+	w.Write(responseBody)
+}
+
+func (ringServer RingServer) checkAlive() {
+	for {
+		log.Print(fmt.Sprintf("[SecondRingServer] Started pinging Primary Server %s:%s", ringServer.Ip, lib.RINGSERVER_NODES_PORT))
+		numMilliSeconds := rand.Intn(1000) + 3000
+		time.Sleep(time.Duration(numMilliSeconds) * time.Millisecond)
+		pingMessage := lib.Message{Type: lib.Put, CourseId: "", Count: "", Hash: "", Replica: false}
+		requestBody, _ := json.Marshal(pingMessage)
+		postURL := fmt.Sprintf("http://%s:%s/send-res", ringServer.Ip, lib.RINGSERVER_NODES_PORT)
+		resp, _ := http.Post(postURL, "application/json", bytes.NewReader(requestBody))
+		// if err != nil {
+		// 	fmt.Println(err)
+			// w.WriteHeader(http.StatusBadRequest)
+			// w.Write([]byte(err.Error()))
+			// return
+		// }
+		defer resp.Body.Close()
+		body2, _ := ioutil.ReadAll(resp.Body)
+
+		if resp.StatusCode == 200 {
+			fmt.Println("Successfully got back Ring Structure. Response:", string(body2))
+			// w.Header().Set("Access-Control-Allow-Origin", "*")
+			// w.WriteHeader(http.StatusOK)
+			// w.Write([]byte(string(body2)))
+		} else {
+			fmt.Println("Primary Ring is down. Reason:", string(body2))
+			// w.Header().Set("Access-Control-Allow-Origin", "*")
+			// w.WriteHeader(http.StatusBadRequest)
+			// w.Write([]byte(string(body2)))
+		}
+	}
+}
+
+
 func main() {
 
 	// Set a different seed everytime so consistent hashing doesnt hash same keys
 	rand.Seed(time.Now().UTC().UnixNano())
 
 	// Initialise ringserver
-	theRingServer := newRingServer()
+	theRingServer, theSecondRingServer := newRingServer()
 	go theRingServer.listenToFrontend()
+	go theSecondRingServer.checkAlive()
+	// fmt.Println(lib.PrettyPrintStruct(theSecondRingServer))
 	//time.Sleep(time.Second * 3)
 	go theRingServer.listenToNodes()
 	time.Sleep(time.Second * 3)
@@ -417,10 +480,12 @@ func main() {
 			courseId := tokens[1]
 			count := tokens[2]
 			theRingServer.WriteToNode(courseId, count)
-
+		
+		case "kill": 
+			cmd := exec.Command("kill-port 5001")
+			cmd.Run()
 		default:
 			fmt.Println("Unknown command. Use 'help' to see available commands.")
-
 		}
 
 		fmt.Println()
