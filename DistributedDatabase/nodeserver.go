@@ -57,10 +57,15 @@ func (n *Node) addNodeToRing() {
 	}
 	requestBody, _ := json.Marshal(nodeData)
 	postURL := fmt.Sprintf("http://%s:%s/add-node", n.RingServerIp, n.RingServerPort)
-	resp, err := http.Post(postURL, "application/json", bytes.NewReader(requestBody))
+	client := http.Client{
+		Timeout: 5 * time.Second,
+	}
+	resp, err := client.Post(postURL, "application/json", bytes.NewReader(requestBody))
 	if err != nil {
 		fmt.Println(err)
-		return
+		n.RingServerPort = lib.RINGSERVER_SECOND_NODES_PORT
+		n.addNodeToRing()
+		// return
 	}
 	defer resp.Body.Close()
 	responseBody, _ := ioutil.ReadAll(resp.Body)
@@ -410,9 +415,14 @@ func (n *Node) ReplicateHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("200 OK -- Successfully replicated data to affectedNode!"))
 }
 
-func (n *Node) updateRingServer(portNo string) {
+func (n *Node) updateRingServer(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("oi hello")
-	n.RingServerPort = portNo
+	body, _ := ioutil.ReadAll(r.Body)
+	var PortNo lib.PortNo
+	json.Unmarshal(body, &PortNo)
+	n.RingServerPort = PortNo.PortNo
+	w.WriteHeader(http.StatusOK)
+
 }
 
 func main() {
