@@ -23,6 +23,8 @@ type RingServer struct {
 	NodesPort    string
 	FrontendPort string
 	Ring         lib.Ring
+	// RingServerChannel lib.Ring
+	// quit 	      chan int
 }
 
 // Initiate socket of ring on port 5001 (for communication with node server)
@@ -37,7 +39,7 @@ func newRingServer() (RingServer, RingServer) {
 		lib.Ring{
 			-1,
 			make(map[int]lib.NodeData),
-			true,
+			true, 
 		},
 	}, RingServer{
 		ip,
@@ -383,9 +385,17 @@ func (ringServer *RingServer) RemoveNodeHandler(w http.ResponseWriter, r *http.R
 // }
 
 func (ringServer *RingServer) SendResponseHandler(w http.ResponseWriter, r *http.Request) {
+<<<<<<< HEAD
 	// print(lib.PrettyPrintStruct(ringServer))
 	if (ringServer.Ring.IsAlive) {
 		fmt.Println(ringServer.Ring.IsAlive)
+=======
+	// ringServer.Ring.IsAlive = false
+	print(lib.PrettyPrintStruct(ringServer)) 
+	// ringServer.Ring.IsAlive = false
+	// time.Sleep(time.Second * 5)
+	if (ringServer.Ring.IsAlive) {
+>>>>>>> fa77a07805706a04f9c223e1d69229f01c3c07b3
 		log.Printf("[RingServer] Receiving Ping Request from Secondary Node")
 		ringNodeDataMap := ringServer.Ring.RingNodeDataMap
 		numMilliSeconds := rand.Intn(1000) + 3000
@@ -393,16 +403,23 @@ func (ringServer *RingServer) SendResponseHandler(w http.ResponseWriter, r *http
 		responseBody, _ := json.Marshal(ringNodeDataMap)
 		w.WriteHeader(http.StatusOK)
 		w.Write(responseBody)
+<<<<<<< HEAD
 	} 
 	return
 	// w.WriteHeader(http.StatusBadRequest)
+=======
+	} else {
+		time.Sleep(time.Second * 10)
+	}
+>>>>>>> fa77a07805706a04f9c223e1d69229f01c3c07b3
 }
 
 func (ringServer RingServer) checkAlive() {
 	for {
-		log.Print(fmt.Sprintf("[SecondRingServer] Started pinging Primary Server %s:%s", ringServer.Ip, lib.RINGSERVER_NODES_PORT))
+		log.Print(fmt.Sprintf("[SecondRingServer] Started pinging Primary Server %s:%s\n", ringServer.Ip, lib.RINGSERVER_NODES_PORT))
 		numMilliSeconds := rand.Intn(1000) + 3000
 		time.Sleep(time.Duration(numMilliSeconds) * time.Millisecond)
+<<<<<<< HEAD
 
 
 		fmt.Println("Primary node is down. Secondary node taking over.")
@@ -460,8 +477,24 @@ func (ringServer RingServer) checkAlive() {
 		// 	// counter += 1
 		// 	// fmt.Println(counter)
 		// // }
+=======
+		getURL := fmt.Sprintf("http://%s:%s/send-res", ringServer.Ip, lib.RINGSERVER_NODES_PORT)
+		client := http.Client{
+			Timeout: 5 * time.Second,
+		}
+		resp, err := client.Get(getURL)
+		if err != nil {
+			fmt.Println(err)
+			fmt.Println("Primary node is down. Secondary node taking over.")
+			return
+		}
+		defer resp.Body.Close()
+		body2, _ := ioutil.ReadAll(resp.Body)
+>>>>>>> fa77a07805706a04f9c223e1d69229f01c3c07b3
 
-		
+		if resp.StatusCode == 200 {
+			fmt.Println("Successfully got back Ring Structure. Response:", string(body2))
+		} 
 	}
 }
 
@@ -477,10 +510,10 @@ func main() {
 	// Initialise ringserver
 	theRingServer, theSecondRingServer := newRingServer()
 	go theRingServer.listenToFrontend()
-	go theSecondRingServer.checkAlive()
 	// fmt.Println(lib.PrettyPrintStruct(theSecondRingServer))
 	//time.Sleep(time.Second * 3)
 	go theRingServer.listenToNodes()
+	go theSecondRingServer.checkAlive()
 	time.Sleep(time.Second * 3)
 
 	for {
