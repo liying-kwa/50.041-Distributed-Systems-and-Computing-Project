@@ -15,7 +15,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"os/exec"
 	"github.com/liying-kwa/50.041-Distributed-Systems-and-Computing-Project/DistributedDatabase/lib"
 )
 
@@ -47,7 +46,7 @@ func newRingServer() (RingServer, RingServer) {
 		lib.Ring{
 			-1,
 			make(map[int]lib.NodeData),
-			false,
+			true,
 		},
 	}
 }
@@ -384,16 +383,20 @@ func (ringServer *RingServer) RemoveNodeHandler(w http.ResponseWriter, r *http.R
 // }
 
 func (ringServer *RingServer) SendResponseHandler(w http.ResponseWriter, r *http.Request) {
-	log.Printf("[RingServer] Receiving Ping Request from Secondary Node")
-	ringNodeDataMap := ringServer.Ring.RingNodeDataMap
-	numMilliSeconds := rand.Intn(1000) + 3000
-	time.Sleep(time.Duration(numMilliSeconds) * time.Millisecond)
-	responseBody, _ := json.Marshal(ringNodeDataMap)
-	w.WriteHeader(http.StatusOK)
-	w.Write(responseBody)
+	// print(lib.PrettyPrintStruct(ringServer))
+	ringServer.Ring.IsAlive = false
+	// if (ringServer.Ring.IsAlive) {
+	// 	log.Printf("[RingServer] Receiving Ping Request from Secondary Node")
+	// 	ringNodeDataMap := ringServer.Ring.RingNodeDataMap
+	// 	numMilliSeconds := rand.Intn(1000) + 3000
+	// 	time.Sleep(time.Duration(numMilliSeconds) * time.Millisecond)
+	// 	responseBody, _ := json.Marshal(ringNodeDataMap)
+	// 	w.WriteHeader(http.StatusOK)
+	// 	w.Write(responseBody)
+	// } 
 }
 
-func (ringServer RingServer) checkAlive() {
+func (ringServer *RingServer) checkAlive() {
 	for {
 		log.Print(fmt.Sprintf("[SecondRingServer] Started pinging Primary Server %s:%s", ringServer.Ip, lib.RINGSERVER_NODES_PORT))
 		numMilliSeconds := rand.Intn(1000) + 3000
@@ -411,20 +414,27 @@ func (ringServer RingServer) checkAlive() {
 		defer resp.Body.Close()
 		body2, _ := ioutil.ReadAll(resp.Body)
 
-		if resp.StatusCode == 200 {
-			fmt.Println("Successfully got back Ring Structure. Response:", string(body2))
-			// w.Header().Set("Access-Control-Allow-Origin", "*")
-			// w.WriteHeader(http.StatusOK)
-			// w.Write([]byte(string(body2)))
-		} else {
-			fmt.Println("Primary Ring is down. Reason:", string(body2))
-			// w.Header().Set("Access-Control-Allow-Origin", "*")
-			// w.WriteHeader(http.StatusBadRequest)
-			// w.Write([]byte(string(body2)))
+		counter := 1
+		gotResponse := false
+		for counter < 8 {
+			if resp.StatusCode == 200 {
+				fmt.Println("Successfully got back Ring Structure. Response:", string(body2))
+				// w.Header().Set("Access-Control-Allow-Origin", "*")
+				// w.WriteHeader(http.StatusOK)
+				// w.Write([]byte(string(body2)))
+				gotResponse = true
+				break
+			} 
+			time.Sleep(time.Duration(1000) * time.Millisecond)
+			counter += 1
 		}
+		if !gotResponse {
+			fmt.Println("Primary node is down. Secondary node taking over.")
+		}
+
+		
 	}
 }
-
 
 func main() {
 
@@ -482,8 +492,10 @@ func main() {
 			theRingServer.WriteToNode(courseId, count)
 		
 		case "kill": 
-			cmd := exec.Command("kill-port 5001")
-			cmd.Run()
+			// fmt.Println("Killing primary node")
+			theRingServer.Ring.IsAlive = false
+			// fmt.Println(theSecondRingServer.Ring.IsAlive)
+
 		default:
 			fmt.Println("Unknown command. Use 'help' to see available commands.")
 		}
