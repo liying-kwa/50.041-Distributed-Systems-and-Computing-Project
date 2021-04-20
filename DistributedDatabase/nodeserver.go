@@ -205,12 +205,12 @@ func (n *Node) WriteHandler(w http.ResponseWriter, r *http.Request) {
 	} else {
 		// Send to successors to replicate
 		// NOTE: Comment out this branch (remove interference) to test replica migration when node is added
-		/* print("FORWARDING MESSAGE TO SUCCESSOR TO REPLICATE")
+		// print("FORWARDING MESSAGE TO SUCCESSOR TO REPLICATE")
 		for _, successor := range n.Successors {
 			print(successor.Ip, successor.Port)
 			message.Replica = true
 			go lib.WriteMessage(message, successor.Ip, successor.Port)
-		} */
+		}
 	}
 
 	// Write data

@@ -76,9 +76,9 @@ func (ringServer *RingServer) AllocateKey(key string) (lib.NodeData, string) {
 
 // Listening on port 3001 for communication with Frontend
 func (ringServer *RingServer) listenToFrontend() {
-	mux := http.NewServeMux()
-	mux.HandleFunc("/read-from-node", ringServer.ReadFromNodeHandler)
-	mux.HandleFunc("/write-to-node", ringServer.WriteToNodeHandler)
+	// mux := http.NewServeMux()
+	http.HandleFunc("/read-from-node", ringServer.ReadFromNodeHandler)
+	http.HandleFunc("/write-to-node", ringServer.WriteToNodeHandler)
 	log.Print(fmt.Sprintf("[RingServer] Started and Listening at %s:%s for Frontend.", ringServer.Ip, ringServer.FrontendPort))
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%s", ringServer.FrontendPort), nil))
 }
@@ -170,6 +170,7 @@ func (ringServer *RingServer) WriteToNodeHandler(w http.ResponseWriter, r *http.
 	resp, err := http.Post(postURL, "application/json", bytes.NewReader(requestBody))
 	if err != nil {
 		fmt.Println(err)
+		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write([]byte(err.Error()))
 		return
@@ -418,13 +419,12 @@ func (ringServer *RingServer) informNodes() {
 	for _, node := range ringServer.Ring.RingNodeDataMap {
 		fmt.Println("Informing nodes of new primary server")
 		wg.Add(1)
-		// go ringServer.sendMessage(node, &wg)
 		go func() {
 			counter += ringServer.sendMessage(node, &wg)
 		}()
+		wg.Wait()
 	}
 	// wait until all nodes has responded successfully
-	wg.Wait()
 	fmt.Printf("Counter = %d, length of ringnode = %d\n", counter, len(ringServer.Ring.RingNodeDataMap))
 	if (counter == len(ringServer.Ring.RingNodeDataMap)) {
 		fmt.Println("Secondary ring server recieved replies from all nodes")
