@@ -418,6 +418,7 @@ func (ringServer *RingServer) informNodes() {
 	for _, node := range ringServer.Ring.RingNodeDataMap {
 		fmt.Println("Informing nodes of new primary server")
 		wg.Add(1)
+		// go ringServer.sendMessage(node, &wg)
 		go func() {
 			counter += ringServer.sendMessage(node, &wg)
 		}()
@@ -514,7 +515,6 @@ func main() {
 				// Print ring pointer? TODO: Fix MaxID display, it always shows -1 for some reason
 				fmt.Println(lib.PrettyPrintStruct(&theRingServer.Ring))
 			}
-
 		// testing read
 		case "read":
 			courseId := tokens[1]
