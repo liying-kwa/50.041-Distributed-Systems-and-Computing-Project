@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"sync"
 	"github.com/liying-kwa/50.041-Distributed-Systems-and-Computing-Project/DistributedDatabase/lib"
 )
 
@@ -23,32 +24,20 @@ type RingServer struct {
 	NodesPort    string
 	FrontendPort string
 	Ring         lib.Ring
-	// RingServerChannel lib.Ring
-	// quit 	      chan int
 }
 
 // Initiate socket of ring on port 5001 (for communication with node server)
-func newRingServer() (RingServer, RingServer) {
+func newRingServer(ringServerPortNo string) (RingServer) {
 	ip, _ := lib.ExternalIP()
 	
 
 	return RingServer{
 		ip,
-		lib.RINGSERVER_NODES_PORT,
+		ringServerPortNo,
 		lib.RINGSERVER_FRONTEND_PORT,
 		lib.Ring{
 			-1,
 			make(map[int]lib.NodeData),
-			true, 
-		},
-	}, RingServer{
-		ip,
-		lib.RINGSERVER_SECOND_NODES_PORT,
-		lib.RINGSERVER_FRONTEND_PORT,
-		lib.Ring{
-			-1,
-			make(map[int]lib.NodeData),
-			true,
 		},
 	}
 }
@@ -86,7 +75,7 @@ func (ringServer *RingServer) AllocateKey(key string) (lib.NodeData, string) {
 }
 
 // Listening on port 3001 for communication with Frontend
-func (ringServer RingServer) listenToFrontend() {
+func (ringServer *RingServer) listenToFrontend() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/read-from-node", ringServer.ReadFromNodeHandler)
 	mux.HandleFunc("/write-to-node", ringServer.WriteToNodeHandler)
@@ -156,7 +145,7 @@ func (ringServer *RingServer) ReadFromNode(courseId string) string {
 	}
 }
 
-func (ringServer RingServer) WriteToNodeHandler(w http.ResponseWriter, r *http.Request) {
+func (ringServer *RingServer) WriteToNodeHandler(w http.ResponseWriter, r *http.Request) {
 	log.Printf("[RingServer] Received Write Request from Frontend")
 	body, _ := ioutil.ReadAll(r.Body)
 	var message lib.Message
@@ -254,7 +243,7 @@ func (ringServer *RingServer) AddNodeHandler(w http.ResponseWriter, r *http.Requ
 	json.Unmarshal(body, &newNodeData)
 	ringNodeDataMap := ringServer.Ring.RingNodeDataMap
 
-	if (ringServer.Ring.IsAlive) {
+	// if (ringServer.Ring.IsAlive) {
 		// Check if node is already in ring structure
 	for _, nd := range ringNodeDataMap {
 		if nd.Ip == newNodeData.Ip && nd.Port == newNodeData.Port {
@@ -322,9 +311,9 @@ func (ringServer *RingServer) AddNodeHandler(w http.ResponseWriter, r *http.Requ
 
 	// Finally, migrate and replicate
 	go ringServer.migrateAndReplicate(newNodeKey, ringNodeDataMap)
-	} else {
-		time.Sleep(time.Second * 10)
-	}
+	// } else {
+	// 	time.Sleep(time.Second * 10)
+	// }
 
 	
 
@@ -386,51 +375,58 @@ func (ringServer *RingServer) RemoveNodeHandler(w http.ResponseWriter, r *http.R
 	w.Write([]byte("200 OK -- Successlly removed node from ring!"))
 }
 
-// func (ringServer RingServer) pingPrimaryRingServer() {
-// 	http.HandleFunc("/checkAlive", ringServer.checkAlive) 
-// 	log.Print(fmt.Sprintf("[SecondRingServer] Started pinging Primary Server %s:%s", ringServer.Ip, lib.RINGSERVER_NODES_PORT))
-// }
+//================================ new edits here ==================================
 
+// send back priamry NodeData
 func (ringServer *RingServer) SendResponseHandler(w http.ResponseWriter, r *http.Request) {
-	// ringServer.Ring.IsAlive = false
-	// ringServer.Ring.IsAlive = false
-	// time.Sleep(time.Second * 5)
-	if (ringServer.Ring.IsAlive) {
-		log.Printf("[RingServer] Receiving Ping Request from Secondary Node")
-		ring := ringServer.Ring
-		numMilliSeconds := rand.Intn(1000) + 3000
-		time.Sleep(time.Duration(numMilliSeconds) * time.Millisecond)
-		responseBody, _ := json.Marshal(ring)
-		w.WriteHeader(http.StatusOK)
-		w.Write(responseBody)
-	} else {
-		time.Sleep(time.Second * 10)
-	}
+	ring := ringServer.Ring
+	numMilliSeconds := rand.Intn(1000) + 2000
+	time.Sleep(time.Duration(numMilliSeconds) * time.Millisecond)
+	responseBody, _ := json.Marshal(ring)
+	w.WriteHeader(http.StatusOK)
+	w.Write(responseBody)
 }
 
+func (ringServer *RingServer) sendMessage(node lib.NodeData, wg *sync.WaitGroup) int{
+	defer wg.Done()
+	success := 1
+	message := lib.PortNo{PortNo: ringServer.NodesPort}
+	requestBody, _ := json.Marshal(message)
+	postURL := fmt.Sprintf("http://%s:%s/update-nodes", node.Ip, node.Port)
+	resp, err := http.Post(postURL, "application/json", bytes.NewReader(requestBody))
+	if err != nil {
+		fmt.Println(err)
+	}
+	defer resp.Body.Close()
+	body, _ := ioutil.ReadAll(resp.Body)
+
+	// response from nodes about new primary ring
+	if resp.StatusCode == 200 {
+		fmt.Println("Successfully wrote to node. Response:", string(body))
+	} else {
+		fmt.Println("Failed to write to node. Reason:", string(body))
+		success = 0
+	}
+	return success
+}
+
+
 func (ringServer *RingServer) informNodes() {
-	
+	// counter to check if all nodes has has been informed
 	counter := 0
+	var wg sync.WaitGroup
 	for _, node := range ringServer.Ring.RingNodeDataMap {
 		fmt.Println("Informing nodes of new primary server")
-		message := lib.PortNo{PortNo: ringServer.NodesPort}
-		requestBody, _ := json.Marshal(message)
-		postURL := fmt.Sprintf("http://%s:%s/update-nodes", node.Ip, node.Port)
-		resp, err := http.Post(postURL, "application/json", bytes.NewReader(requestBody))
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-		defer resp.Body.Close()
-		body, _ := ioutil.ReadAll(resp.Body)
-
-		// Echo response back to Frontend
-		if resp.StatusCode == 200 {
-			fmt.Println("Successfully wrote to node. Response:", string(body))
-			counter += 1
-		} else {
-			fmt.Println("Failed to write to node. Reason:", string(body))
-		}
+		wg.Add(1)
+		go func() {
+			counter += ringServer.sendMessage(node, &wg)
+		}()
+	}
+	// wait until all nodes has responded successfully
+	wg.Wait()
+	fmt.Printf("Counter = %d, length of ringnode = %d\n", counter, len(ringServer.Ring.RingNodeDataMap))
+	if (counter == len(ringServer.Ring.RingNodeDataMap)) {
+		fmt.Println("Secondary ring server recieved replies from all nodes")
 	}
 }
 
@@ -440,50 +436,55 @@ func (ringServer *RingServer) startSecondaryNode() {
 }
 
 func (ringServer *RingServer) checkAlive() {
+	log.Print(fmt.Sprintf("[SecondRingServer] Started pinging Primary Server %s:%s\n", ringServer.Ip, lib.RINGSERVER_NODES_PORT))
+	// periodically ping priamry server 
 	for {
-		log.Print(fmt.Sprintf("[SecondRingServer] Started pinging Primary Server %s:%s\n", ringServer.Ip, lib.RINGSERVER_NODES_PORT))
-		numMilliSeconds := rand.Intn(1000) + 3000
+		numMilliSeconds := rand.Intn(1000) + 2000
 		time.Sleep(time.Duration(numMilliSeconds) * time.Millisecond)
 		getURL := fmt.Sprintf("http://%s:%s/send-res", ringServer.Ip, lib.RINGSERVER_NODES_PORT)
-		client := http.Client{
-			Timeout: 5 * time.Second,
-		}
-		resp, err := client.Get(getURL)
+		resp, err := http.Get(getURL)
+		// if unsuccessful response from primary server, notify all other nodes, start listening to frontend and nodes. Stop check alive
 		if err != nil {
 			fmt.Println(err)
 			fmt.Println("Primary node is down. Secondary node taking over.")
-			ringServer.informNodes()
-			ringServer.startSecondaryNode()
+			go ringServer.informNodes()
+			go ringServer.startSecondaryNode()
 			return
 		}
 		defer resp.Body.Close()
 		body2, _ := ioutil.ReadAll(resp.Body)
 
+		// if successful response from primary server, set its maxID and NodeDataMap to be the same as primary ring
 		if resp.StatusCode == 200 {
-			fmt.Println("Successfully got back Ring Structure. Response:", string(body2))
 			var primaryRing lib.Ring
 			json.Unmarshal(body2, &primaryRing)
 			ringServer.Ring.MaxID = primaryRing.MaxID
 			ringServer.Ring.RingNodeDataMap = primaryRing.RingNodeDataMap
-			fmt.Println(lib.PrettyPrintStruct(ringServer))
 		} 
 	}
-}
-
+} 
 
 func main() {
 
 	// Set a different seed everytime so consistent hashing doesnt hash same keys
 	rand.Seed(time.Now().UTC().UnixNano())
-
-	// Initialise ringserver
-	theRingServer, theSecondRingServer := newRingServer()
-	go theRingServer.listenToFrontend()
-	go theRingServer.listenToNodes()
-	go theSecondRingServer.checkAlive()
-	// go theSecondRingServer.listenToFrontend()
-	// go theSecondRingServer.listenToNodes()
+	arg := os.Args[1]
+	// check for primary ringserver 
+	var theRingServer RingServer
+	// go run ringserver.go p for primary server
+	if (arg == "p") {
+		theRingServer = newRingServer(lib.RINGSERVER_NODES_PORT)
+		go theRingServer.listenToFrontend()
+		go theRingServer.listenToNodes()
+	// go run ringserver.go s for secondary server
+	} else if (arg == "s") {
+		theRingServer = newRingServer(lib.RINGSERVER_SECOND_NODES_PORT)
+		go theRingServer.checkAlive()
+	} else {
+		fmt.Println("Invalid Command")
+	}
 	time.Sleep(time.Second * 3)
+    
 
 	for {
 		fmt.Printf("RingServer> ")
@@ -525,11 +526,6 @@ func main() {
 			courseId := tokens[1]
 			count := tokens[2]
 			theRingServer.WriteToNode(courseId, count)
-		
-		case "kill": 
-			// fmt.Println("Killing primary node")
-			theRingServer.Ring.IsAlive = false
-			// fmt.Println(theSecondRingServer.Ring.IsAlive)
 
 		default:
 			fmt.Println("Unknown command. Use 'help' to see available commands.")

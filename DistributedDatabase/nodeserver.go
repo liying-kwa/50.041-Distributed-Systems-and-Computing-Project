@@ -29,7 +29,7 @@ type Node struct {
 	RingServerPort  string
 }
 
-func newNode(id int, portNo string) *Node {
+func newNode(id int, portNo string, ringServerPortNo string) *Node {
 	ip, _ := lib.ExternalIP()
 	return &Node{
 		Id:              id,
@@ -40,12 +40,11 @@ func newNode(id int, portNo string) *Node {
 		Successors:      make(map[int]lib.SimpleNodeData),
 		ConnectedToRing: false,
 		RingServerIp:    lib.RINGSERVER_IP,
-		RingServerPort:  lib.RINGSERVER_NODES_PORT,
+		RingServerPort: ringServerPortNo,
 	}
 }
 
 func (n *Node) addNodeToRing() {
-
 	// Request Ringserver to add this node to the ring
 	nodeData := lib.NodeData{
 		Id:           n.Id,
@@ -57,15 +56,14 @@ func (n *Node) addNodeToRing() {
 	}
 	requestBody, _ := json.Marshal(nodeData)
 	postURL := fmt.Sprintf("http://%s:%s/add-node", n.RingServerIp, n.RingServerPort)
-	client := http.Client{
-		Timeout: 5 * time.Second,
-	}
-	resp, err := client.Post(postURL, "application/json", bytes.NewReader(requestBody))
+	resp, err := http.Post(postURL, "application/json", bytes.NewReader(requestBody))
+	// if unable to add port, retry with secondary port
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("Failed to register. Trying to register with new port.")
+		// set ring server port number to be secondary server port number
 		n.RingServerPort = lib.RINGSERVER_SECOND_NODES_PORT
 		n.addNodeToRing()
-		// return
+		return
 	}
 	defer resp.Body.Close()
 	responseBody, _ := ioutil.ReadAll(resp.Body)
@@ -415,19 +413,24 @@ func (n *Node) ReplicateHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("200 OK -- Successfully replicated data to affectedNode!"))
 }
 
+// ======================= new edits here ==========================
+
+// reply secondary ring server that it has recieved notice about primary's node failure
 func (n *Node) updateRingServer(w http.ResponseWriter, r *http.Request) {
-	fmt.Println("oi hello")
+	fmt.Printf("[Node %d] Received notice that primary ring server is down, sending acknowledgement.", n.Id)	
 	body, _ := ioutil.ReadAll(r.Body)
 	var PortNo lib.PortNo
 	json.Unmarshal(body, &PortNo)
+	fmt.Printf("[Node %d] Changing ring server port to %s", n.Id, PortNo.PortNo)
+	// set ndoe ring server port number to be secondary ring server port number
 	n.RingServerPort = PortNo.PortNo
 	w.WriteHeader(http.StatusOK)
-
 }
 
 func main() {
 
-	thisNode := newNode(0, "-1")
+	// initialise newNode with primary node port
+	thisNode := newNode(0, "-1", lib.RINGSERVER_NODES_PORT)
 
 	for {
 		fmt.Printf("NodeServer> ")
