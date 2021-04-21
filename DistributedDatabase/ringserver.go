@@ -27,14 +27,14 @@ type RingServer struct {
 }
 
 // Initiate socket of ring on port 5001 (for communication with node server)
-func newRingServer(ringServerPortNo string) (RingServer) {
+func newRingServer(ringServerPortNo string, frontEndPortNo string) (RingServer) {
 	ip, _ := lib.ExternalIP()
 	
 
 	return RingServer{
 		ip,
 		ringServerPortNo,
-		lib.RINGSERVER_FRONTEND_PORT,
+		frontEndPortNo,
 		lib.Ring{
 			-1,
 			make(map[int]lib.NodeData),
@@ -77,6 +77,7 @@ func (ringServer *RingServer) AllocateKey(key string) (lib.NodeData, string) {
 // Listening on port 3001 for communication with Frontend
 func (ringServer *RingServer) listenToFrontend() {
 	// mux := http.NewServeMux()
+	http.HandleFunc("/check-alive", ringServer.CheckAliveNodeHandler)
 	http.HandleFunc("/read-from-node", ringServer.ReadFromNodeHandler)
 	http.HandleFunc("/write-to-node", ringServer.WriteToNodeHandler)
 	log.Print(fmt.Sprintf("[RingServer] Started and Listening at %s:%s for Frontend.", ringServer.Ip, ringServer.FrontendPort))
@@ -466,6 +467,14 @@ func (ringServer *RingServer) checkAlive() {
 	}
 } 
 
+func (ringserver *RingServer) CheckAliveNodeHandler(w http.ResponseWriter, r *http.Request) {
+	body := lib.FrontEndPortNo{FrontEndPortNo: lib.RINGSERVER_SECOND_FRONTEND_PORT}
+	body2, _ := json.Marshal(body)
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(string(body2)))
+}
+
 func main() {
 
 	// Set a different seed everytime so consistent hashing doesnt hash same keys
@@ -475,12 +484,12 @@ func main() {
 	var theRingServer RingServer
 	// go run ringserver.go p for primary server
 	if (arg == "p") {
-		theRingServer = newRingServer(lib.RINGSERVER_NODES_PORT)
+		theRingServer = newRingServer(lib.RINGSERVER_NODES_PORT, lib.RINGSERVER_FRONTEND_PORT)
 		go theRingServer.listenToFrontend()
 		go theRingServer.listenToNodes()
 	// go run ringserver.go s for secondary server
 	} else if (arg == "s") {
-		theRingServer = newRingServer(lib.RINGSERVER_SECOND_NODES_PORT)
+		theRingServer = newRingServer(lib.RINGSERVER_SECOND_NODES_PORT, lib.RINGSERVER_SECOND_FRONTEND_PORT)
 		go theRingServer.checkAlive()
 	} else {
 		fmt.Println("Invalid Command")

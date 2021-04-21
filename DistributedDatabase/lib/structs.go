@@ -47,3 +47,7 @@ const (
 type PortNo struct {
 	PortNo string
 }
+
+type FrontEndPortNo struct {
+	FrontEndPortNo string
+}
