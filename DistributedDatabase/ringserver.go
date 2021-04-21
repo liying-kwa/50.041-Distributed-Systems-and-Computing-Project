@@ -77,7 +77,7 @@ func (ringServer *RingServer) AllocateKey(key string) (lib.NodeData, string) {
 // Listening on port 3001 for communication with Frontend
 func (ringServer *RingServer) listenToFrontend() {
 	// mux := http.NewServeMux()
-	http.HandleFunc("/check-alive", ringServer.CheckAliveNodeHandler)
+	http.HandleFunc("/check-alive", ringServer.CheckAliveServerHandler)
 	http.HandleFunc("/read-from-node", ringServer.ReadFromNodeHandler)
 	http.HandleFunc("/write-to-node", ringServer.WriteToNodeHandler)
 	log.Print(fmt.Sprintf("[RingServer] Started and Listening at %s:%s for Frontend.", ringServer.Ip, ringServer.FrontendPort))
@@ -467,11 +467,13 @@ func (ringServer *RingServer) checkAlive() {
 	}
 } 
 
-func (ringserver *RingServer) CheckAliveNodeHandler(w http.ResponseWriter, r *http.Request) {
+// frontend to check if primary server is down
+func (ringserver *RingServer) CheckAliveServerHandler(w http.ResponseWriter, r *http.Request) {
 	body := lib.FrontEndPortNo{FrontEndPortNo: lib.RINGSERVER_SECOND_FRONTEND_PORT}
 	body2, _ := json.Marshal(body)
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.WriteHeader(http.StatusOK)
+	// return secondary frontend port incase it fails
 	w.Write([]byte(string(body2)))
 }
 
