@@ -428,6 +428,7 @@ func (ringServer *RingServer) informNodes() {
 	fmt.Printf("Counter = %d, length of ringnode = %d\n", counter, len(ringServer.Ring.RingNodeDataMap))
 	if (counter == len(ringServer.Ring.RingNodeDataMap)) {
 		fmt.Println("Secondary ring server recieved replies from all nodes")
+		go ringServer.startSecondaryNode()
 	}
 }
 
@@ -448,8 +449,8 @@ func (ringServer *RingServer) checkAlive() {
 		if err != nil {
 			fmt.Println(err)
 			fmt.Println("Primary node is down. Secondary node taking over.")
+			time.Sleep(time.Second * 10)
 			go ringServer.informNodes()
-			go ringServer.startSecondaryNode()
 			return
 		}
 		defer resp.Body.Close()
