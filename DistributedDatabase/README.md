@@ -15,8 +15,8 @@ Database to store enrolment information, written in golang.
 | help                      | Displays available commands.                                       |
 | info                      | Displays information about the RingServer in PrettyPrint format.   |
 | ring                      | Displays the ring structure in PrettyPrint format.                 |
-| read &ltcourseID&gt           | Carries out a read operation in the form of GET(courseID).         |
-| write &ltcourseID&gt, &ltcount&gt | Carries out a write operation in the form of PUT(courseID, count). |
+| read &lt;courseID&gt;           | Carries out a read operation in the form of GET(courseID).         |
+| write &lt;courseID&gt;, &lt;count&gt; | Carries out a write operation in the form of PUT(courseID, count). |
 
 ### NodeServer
 
@@ -24,6 +24,6 @@ Database to store enrolment information, written in golang.
 |-------------------|--------------------------------------------------------------------------------------------------------------------------------------------|
 | help              | Displays available commands.                                                                                                               |
 | info              | Displays information about the NodeServer in PrettyPrint format.                                                                           |
-| register <portNo> | Registers with the RingServer to add to the ring structure. If registration is successful, the NodeServer listens on the portNo specified. |
+| register &lt;portNo&gt; | Registers with the RingServer to add to the ring structure. If registration is successful, the NodeServer listens on the portNo specified. |
 
 
