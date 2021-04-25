@@ -43,3 +43,11 @@ const (
 	Get MessageType = iota
 	Put
 )
+
+type PortNo struct {
+	PortNo string
+}
+
+type FrontEndPortNo struct {
+	FrontEndPortNo string
+}
